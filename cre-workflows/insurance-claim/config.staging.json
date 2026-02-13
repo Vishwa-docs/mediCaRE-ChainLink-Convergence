@@ -1,0 +1,8 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "insurancePolicyAddress": "0x0000000000000000000000000000000000000003",
+  "ehrStorageAddress": "0x0000000000000000000000000000000000000001",
+  "riskScoringUrl": "https://api.medicare-ai.example.com/v1/risk-score",
+  "medicalDataUrl": "https://api.medicare-backend.example.com/v1/claim-data",
+  "gasLimit": 500000
+}

@@ -1,0 +1,26 @@
+# ──────────────────────────────────────────────────────────────
+#  mediCaRE — CRE Project Configuration
+#  Global settings shared across all workflows.
+# ──────────────────────────────────────────────────────────────
+
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: "${CRE_SEPOLIA_RPC_URL}"
+    - chain-name: ethereum-testnet-sepolia-optimism-1
+      url: "${CRE_OP_SEPOLIA_RPC_URL}"
+    - chain-name: ethereum-testnet-sepolia-base-1
+      url: "${CRE_BASE_SEPOLIA_RPC_URL}"
+  simulator:
+    chain-name: ethereum-testnet-sepolia
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: "${CRE_SEPOLIA_RPC_URL}"
+    - chain-name: ethereum-testnet-sepolia-optimism-1
+      url: "${CRE_OP_SEPOLIA_RPC_URL}"
+    - chain-name: ethereum-testnet-sepolia-base-1
+      url: "${CRE_BASE_SEPOLIA_RPC_URL}"
+  account:
+    workflow-owner-address: "${WORKFLOW_OWNER_ADDRESS}"

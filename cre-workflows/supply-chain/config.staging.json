@@ -1,0 +1,11 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "supplyChainAddress": "0x0000000000000000000000000000000000000004",
+  "iotOracleUrl": "https://api.medicare-iot.example.com/v1/sensor-data",
+  "cronSchedule": "0 */5 * * * *",
+  "temperatureMaxCelsius": 8,
+  "temperatureMinCelsius": 2,
+  "humidityMaxPercent": 65,
+  "humidityMinPercent": 35,
+  "gasLimit": 400000
+}
