@@ -1,0 +1,226 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      network:
+        description: "Target network"
+        required: true
+        type: choice
+        options:
+          - sepolia
+          - amoy
+          - ethereum
+          - polygon
+      confirm:
+        description: "Type 'deploy' to confirm"
+        required: true
+        type: string
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ────────────────────────────────────────────────
+  #  Pre-flight validation
+  # ────────────────────────────────────────────────
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm deployment
+        if: ${{ inputs.confirm != 'deploy' }}
+        run: |
+          echo "::error::Deployment not confirmed. Type 'deploy' in the confirm field."
+          exit 1
+
+      - name: Mainnet guard
+        if: ${{ inputs.environment == 'mainnet' }}
+        run: |
+          echo "::warning::MAINNET deployment requested for ${{ inputs.network }}"
+          echo "Ensure all audits are completed and multisig approvals are in place."
+
+  # ────────────────────────────────────────────────
+  #  Run tests before deploying
+  # ────────────────────────────────────────────────
+  test:
+    name: Pre-deploy Tests
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Run tests
+        run: npx hardhat test
+
+  # ────────────────────────────────────────────────
+  #  Deploy contracts
+  # ────────────────────────────────────────────────
+  deploy-contracts:
+    name: Deploy Contracts (${{ inputs.network }})
+    needs: test
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Deploy to ${{ inputs.network }}
+        run: npx hardhat run scripts/deploy.ts --network ${{ inputs.network }}
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          AMOY_RPC_URL: ${{ secrets.AMOY_RPC_URL }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+
+      - name: Verify contracts on Etherscan
+        if: ${{ inputs.environment == 'testnet' }}
+        run: echo "Contract verification would run here with hardhat-verify"
+        continue-on-error: true
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-${{ inputs.network }}-${{ github.run_number }}
+          path: |
+            contracts/artifacts/
+            contracts/deployments/
+          retention-days: 90
+
+  # ────────────────────────────────────────────────
+  #  Deploy backend
+  # ────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Backend
+    needs: deploy-contracts
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build -t medicare-backend:${{ github.sha }} .
+
+      - name: Deploy notification
+        run: |
+          echo "Backend deployment for ${{ inputs.environment }}/${{ inputs.network }}"
+          echo "Image: medicare-backend:${{ github.sha }}"
+          echo "Deploy to your hosting provider here (Railway, Fly.io, etc.)"
+
+  # ────────────────────────────────────────────────
+  #  Deploy frontend
+  # ────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: deploy-contracts
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_THIRDWEB_CLIENT_ID: ${{ secrets.THIRDWEB_CLIENT_ID }}
+
+      - name: Deploy notification
+        run: |
+          echo "Frontend deployment for ${{ inputs.environment }}"
+          echo "Deploy to Vercel, Netlify, or IPFS here."
+
+  # ────────────────────────────────────────────────
+  #  Post-deploy summary
+  # ────────────────────────────────────────────────
+  summary:
+    name: Deployment Summary
+    if: always()
+    needs: [deploy-contracts, deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Contracts | ${{ needs.deploy-contracts.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend   | ${{ needs.deploy-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend  | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Network:** ${{ inputs.network }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

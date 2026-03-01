@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ────────────────────────────────────────────────
+  #  Smart contracts – compile, lint, test, coverage
+  # ────────────────────────────────────────────────
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Run unit tests
+        run: npx hardhat test
+        env:
+          REPORT_GAS: true
+
+      - name: Generate coverage report
+        run: npx hardhat coverage
+        continue-on-error: true
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-coverage
+          path: contracts/coverage/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────
+  #  Backend – build, lint, test
+  # ────────────────────────────────────────────────
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci-test-secret
+          RPC_URL: http://localhost:8545
+          PRIVATE_KEY: "0x0000000000000000000000000000000000000000000000000000000000000001"
+          EHR_STORAGE_ADDRESS: "0x0000000000000000000000000000000000000000"
+          INSURANCE_POLICY_ADDRESS: "0x0000000000000000000000000000000000000000"
+          SUPPLY_CHAIN_ADDRESS: "0x0000000000000000000000000000000000000000"
+          CREDENTIAL_REGISTRY_ADDRESS: "0x0000000000000000000000000000000000000000"
+          GOVERNANCE_ADDRESS: "0x0000000000000000000000000000000000000000"
+
+  # ────────────────────────────────────────────────
+  #  Frontend – build, lint, type-check
+  # ────────────────────────────────────────────────
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_THIRDWEB_CLIENT_ID: ci-placeholder
+
+  # ────────────────────────────────────────────────
+  #  All checks gate
+  # ────────────────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs: [contracts, backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.contracts.result }}" == "failure" ||
+                "${{ needs.backend.result }}" == "failure" ||
+                "${{ needs.frontend.result }}" == "failure" ]]; then
+            echo "::error::One or more CI jobs failed."
+            exit 1
+          fi
+          echo "All CI checks passed."
