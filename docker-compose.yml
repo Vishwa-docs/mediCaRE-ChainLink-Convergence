@@ -1,0 +1,74 @@
+###############################################################################
+# mediCaRE – Docker Compose (full-stack development)
+###############################################################################
+
+version: "3.9"
+
+services:
+  # ─── Backend (Express / Node.js API) ──────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medicare-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL:-}
+      IPFS_GATEWAY_URL: ${IPFS_GATEWAY_URL:-https://gateway.pinata.cloud}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      RPC_URL: ${RPC_URL:-http://host.docker.internal:8545}
+      CHAINLINK_FUNCTIONS_SUB_ID: ${CHAINLINK_FUNCTIONS_SUB_ID:-}
+      CHAINLINK_FUNCTIONS_DON_ID: ${CHAINLINK_FUNCTIONS_DON_ID:-}
+    volumes:
+      - ./backend/src:/app/src:ro
+      - backend_node_modules:/app/node_modules
+    networks:
+      - medicare-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ─── Frontend (Next.js) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medicare-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_THIRDWEB_CLIENT_ID: ${NEXT_PUBLIC_THIRDWEB_CLIENT_ID:-}
+      NEXT_PUBLIC_BACKEND_URL: http://backend:4000
+      NEXT_PUBLIC_CHAIN_ID: ${NEXT_PUBLIC_CHAIN_ID:-84532}
+      NEXT_PUBLIC_WORLDCOIN_APP_ID: ${NEXT_PUBLIC_WORLDCOIN_APP_ID:-}
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - medicare-net
+
+# ─── Volumes ──────────────────────────────────────────────────────────
+volumes:
+  backend_node_modules:
+  frontend_node_modules:
+
+# ─── Networks ─────────────────────────────────────────────────────────
+networks:
+  medicare-net:
+    driver: bridge
