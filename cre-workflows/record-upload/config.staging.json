@@ -1,6 +1,6 @@
 {
   "chainName": "ethereum-testnet-sepolia",
-  "ehrStorageAddress": "0x0000000000000000000000000000000000000001",
+  "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
   "ipfsGatewayUrl": "https://gateway.pinata.cloud/ipfs",
   "aiSummarizerUrl": "https://api.medicare-ai.example.com/v1/summarize",
   "authorizedEVMAddress": "",

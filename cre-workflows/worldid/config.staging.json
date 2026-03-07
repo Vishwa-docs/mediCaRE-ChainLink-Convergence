@@ -1,6 +1,6 @@
 {
   "chainName": "ethereum-testnet-sepolia",
-  "credentialRegistryAddress": "0x0000000000000000000000000000000000000002",
+  "credentialRegistryAddress": "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
   "worldIdVerifierUrl": "https://developer.worldcoin.org/api/v2/verify",
   "authorizedEVMAddress": "",
   "gasLimit": 350000

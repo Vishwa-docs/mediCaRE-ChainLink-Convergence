@@ -1,0 +1,14 @@
+{
+  "network": "tenderlyVNet",
+  "chainId": 99911155111,
+  "deployer": "0x7637B8d8F46990441420343A7660436eD69c3716",
+  "deployedAt": "2026-03-06T13:59:00.124Z",
+  "contracts": {
+    "MockStablecoin": "0x7Cf6cb620c2617887DC0Df5Faf8b14A984404f98",
+    "EHRStorage": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+    "InsurancePolicy": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
+    "SupplyChain": "0xC69B9c117bA7207ae7c28796718e950fD2eE3507",
+    "CredentialRegistry": "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
+    "Governance": "0xB5095Ecbf55E739395e346A6ebEA1701D47d5556"
+  }
+}

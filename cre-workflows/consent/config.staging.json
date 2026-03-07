@@ -1,7 +1,7 @@
 {
   "chainName": "ethereum-testnet-sepolia",
-  "ehrStorageAddress": "0x0000000000000000000000000000000000000001",
-  "credentialRegistryAddress": "0x0000000000000000000000000000000000000002",
+  "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+  "credentialRegistryAddress": "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
   "ipfsGatewayUrl": "https://gateway.pinata.cloud/ipfs",
   "authorizedEVMAddress": "",
   "gasLimit": 300000

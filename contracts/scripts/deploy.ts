@@ -4,6 +4,7 @@
  * ──────────────────────────────────────────────────────────────
  *
  *  Usage:
+ *    npx hardhat run scripts/deploy.ts --network tenderlyVNet  (Tenderly Virtual TestNet)
  *    npx hardhat run scripts/deploy.ts --network sepolia
  *    npx hardhat run scripts/deploy.ts --network amoy
  *    npx hardhat run scripts/deploy.ts --network hardhat   (local)
@@ -128,7 +129,7 @@ async function main(): Promise<void> {
   // ────────────────────────────────────────────────────────────
   let stablecoinAddress: string;
 
-  const isTestnet = ["hardhat", "localhost", "sepolia", "amoy"].includes(networkName);
+  const isTestnet = ["hardhat", "localhost", "sepolia", "amoy", "tenderlyVNet"].includes(networkName);
 
   if (isTestnet) {
     const MockStablecoin = await ethers.getContractFactory("MockStablecoin");
