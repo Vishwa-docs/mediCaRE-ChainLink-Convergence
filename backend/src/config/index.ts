@@ -77,12 +77,14 @@ const config = {
 
   /** World ID */
   worldId: {
-    appId: optional("WORLDID_APP_ID", "app_staging"),
-    action: optional("WORLDID_ACTION", "verify-human"),
+    appId: optional("WORLDID_APP_ID", "app_cf4f67cc7a208b56b418fdc252b16aa5"),
+    action: optional("WORLDID_ACTION", "medicare-identity"),
     apiUrl: optional(
       "WORLDID_API_URL",
       "https://developer.worldcoin.org/api/v2/verify",
     ),
+    rpId: optional("WORLDID_RP_ID", ""),
+    signingKey: optional("WORLDID_SIGNING_KEY", ""),
   },
 
   /** Encryption */

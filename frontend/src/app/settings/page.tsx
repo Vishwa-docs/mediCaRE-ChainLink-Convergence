@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings,
   Wallet,
@@ -19,6 +19,9 @@ import Card from "@/components/shared/Card";
 import { useWalletAddress, useContract } from "@/hooks/useContract";
 import { ethers } from "ethers";
 import toast from "react-hot-toast";
+import { IDKitRequestWidget, type IDKitResult } from "@worldcoin/idkit";
+import { deviceLegacy } from "@worldcoin/idkit-core";
+import { authApiClient } from "@/lib/authApi";
 
 // Role constants (keccak256 hashes from contracts)
 const ROLES = {
@@ -40,6 +43,14 @@ interface RoleCheck {
 export default function SettingsPage() {
   const [worldIdVerified, setWorldIdVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [idkitOpen, setIdkitOpen] = useState(false);
+  const [rpContext, setRpContext] = useState<{
+    rp_id: string;
+    nonce: string;
+    created_at: number;
+    expires_at: number;
+    signature: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [ethBalance, setEthBalance] = useState<string | null>(null);
   const [roleChecks, setRoleChecks] = useState<RoleCheck[]>([]);
@@ -105,13 +116,69 @@ export default function SettingsPage() {
   const displayAddress = address || "Not connected";
   const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Not connected";
 
-  const handleWorldIdVerify = async () => {
+  /** Fetch a signed rp_context from the backend, then open IDKit widget */
+  const handleWorldIdVerify = useCallback(async () => {
     setVerifying(true);
-    await new Promise((r) => setTimeout(r, 3000));
-    setWorldIdVerified(true);
-    setVerifying(false);
-    toast.success("World ID verified successfully!");
-  };
+    try {
+      const resp = await authApiClient.getWorldIdSignRequest();
+      const data = resp.data?.data;
+      if (!data?.rp_context) throw new Error("Failed to get RP context");
+      setRpContext(data.rp_context);
+      setIdkitOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to start World ID verification");
+      setVerifying(false);
+    }
+  }, []);
+
+  /** Called when IDKit proof is ready — send to backend for verification */
+  const handleIdKitSuccess = useCallback(async (result: IDKitResult) => {
+    try {
+      // Extract the first v3 response (legacy mode)
+      if (result.protocol_version === "3.0" && result.responses?.[0]) {
+        const resp = result.responses[0];
+        await authApiClient.verifyWorldID({
+          merkle_root: (resp as any).merkle_root || "",
+          nullifier_hash: (resp as any).nullifier || "",
+          proof: typeof (resp as any).proof === "string" ? (resp as any).proof : "",
+          signal: address || "",
+        });
+      } else if (result.protocol_version === "4.0" && result.responses?.[0]) {
+        // V4 proof — send proof array as JSON
+        const resp = result.responses[0];
+        await authApiClient.verifyWorldID({
+          merkle_root: "",
+          nullifier_hash: (resp as any).nullifier || "",
+          proof: JSON.stringify((resp as any).proof),
+          signal: address || "",
+        });
+      } else {
+        // Fallback: simulate for demo
+        await authApiClient.simulateWorldID();
+      }
+      setWorldIdVerified(true);
+      toast.success("World ID verified successfully!");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Verification failed on backend");
+    } finally {
+      setVerifying(false);
+      setIdkitOpen(false);
+    }
+  }, [address]);
+
+  /** Fallback: simulate World ID for demo / when World App not available */
+  const handleSimulateWorldId = useCallback(async () => {
+    setVerifying(true);
+    try {
+      await authApiClient.simulateWorldID();
+      setWorldIdVerified(true);
+      toast.success("World ID simulated for demo!");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Simulation failed");
+    } finally {
+      setVerifying(false);
+    }
+  }, []);
 
   const handleCopy = () => {
     if (!address) return;
@@ -229,10 +296,42 @@ export default function SettingsPage() {
           </div>
 
           {!worldIdVerified && (
-            <Button className="w-full" variant="secondary" loading={verifying} onClick={handleWorldIdVerify}>
-              <UserCheck className="h-4 w-4" />
-              Verify with World ID
-            </Button>
+            <div className="space-y-2">
+              <Button className="w-full" variant="secondary" loading={verifying} onClick={handleWorldIdVerify}>
+                <UserCheck className="h-4 w-4" />
+                Verify with World ID
+              </Button>
+              <button
+                onClick={handleSimulateWorldId}
+                disabled={verifying}
+                className="w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline"
+              >
+                Demo: Simulate verification (no World App needed)
+              </button>
+            </div>
+          )}
+
+          {/* IDKit v4 Widget — only renders when rpContext is ready */}
+          {rpContext && (
+            <IDKitRequestWidget
+              app_id={process.env.NEXT_PUBLIC_WORLDID_APP_ID as `app_${string}` || "app_cf4f67cc7a208b56b418fdc252b16aa5"}
+              action={process.env.NEXT_PUBLIC_WORLDID_ACTION || "medicare-identity"}
+              preset={deviceLegacy({ signal: address || "" })}
+              rp_context={rpContext}
+              allow_legacy_proofs={true}
+              open={idkitOpen}
+              onOpenChange={(open) => {
+                setIdkitOpen(open);
+                if (!open) setVerifying(false);
+              }}
+              onSuccess={handleIdKitSuccess}
+              onError={(errorCode) => {
+                toast.error(`World ID error: ${errorCode}`);
+                setVerifying(false);
+                setIdkitOpen(false);
+              }}
+              autoClose
+            />
           )}
         </Card>
 

@@ -17,6 +17,8 @@ import {
   insertWorldIDVerification,
 } from "../services/database";
 import { verifyWorldIDProof } from "../services/worldid";
+import { signRequest as signWorldIdRequest } from "@worldcoin/idkit-server";
+import config from "../config";
 import { createLogger } from "../utils/logging";
 import { UserRole } from "../types";
 
@@ -197,6 +199,44 @@ router.post(
       res.json({
         success: true,
         data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/* ─── GET /api/auth/worldid/sign-request ───────────────────── */
+/** Generate a signed rp_context for the IDKit v4 widget */
+router.get(
+  "/worldid/sign-request",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const signingKey = config.worldId.signingKey;
+      const rpId = config.worldId.rpId;
+
+      if (!signingKey || !rpId) {
+        res.status(500).json({ success: false, error: "World ID signing key or RP ID not configured" });
+        return;
+      }
+
+      const rpSig = signWorldIdRequest(config.worldId.action, signingKey, 300);
+
+      res.json({
+        success: true,
+        data: {
+          app_id: config.worldId.appId,
+          action: config.worldId.action,
+          rp_context: {
+            rp_id: rpId,
+            nonce: rpSig.nonce,
+            created_at: rpSig.createdAt,
+            expires_at: rpSig.expiresAt,
+            signature: rpSig.sig,
+          },
+        },
         timestamp: new Date().toISOString(),
       });
     } catch (err) {

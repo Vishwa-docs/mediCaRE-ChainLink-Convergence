@@ -58,6 +58,9 @@ export const authApiClient = {
   simulateWorldID: () =>
     authApi.post("/api/auth/worldid/simulate"),
 
+  getWorldIdSignRequest: () =>
+    authApi.get("/api/auth/worldid/sign-request"),
+
   getUsers: () =>
     authApi.get<{ success: boolean; data: { users: AuthUser[]; total: number } }>("/api/auth/users"),
 
