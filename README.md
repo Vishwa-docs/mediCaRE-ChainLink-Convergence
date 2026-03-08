@@ -405,23 +405,49 @@ Creates: 5 EHR records + 1 longitudinal summary, 3 insurance policies + 1 claim 
 
 ## Cloud Deployment (Live Demo)
 
+### Live URLs
+
+| | URL |
+|---|---|
+| **Live App** | **https://medicare-frontend-production.up.railway.app** |
+| **Backend API** | https://medicare-backend-production-861b.up.railway.app |
+| **GitHub** | https://github.com/Vishwa-docs/mediCaRE-ChainLink-Convergence |
+
 mediCaRE runs as a live website with **zero local dependencies**:
 
 | Component | Platform | Free Tier |
 |-----------|----------|-----------|
-| **Frontend** | Vercel | ✅ |
+| **Frontend** | Railway | ✅ |
 | **Backend API** | Railway | ✅ (500 hrs/mo) |
 | **Database** | Supabase (PostgreSQL) | ✅ (500 MB) |
 | **Smart Contracts** | Tenderly Virtual TestNet | ✅ |
 
-### 1. Set Up Supabase
+### Demo Accounts
+
+Log in with any of these pre-seeded accounts to explore different roles:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@medicare-dao.eth` | `admin123` |
+| Patient | `patient@medicare-dao.eth` | `patient123` |
+| Doctor | `doctor@medicare-dao.eth` | `doctor123` |
+| Insurer | `insurer@medicare-dao.eth` | `insurer123` |
+| Paramedic | `paramedic@medicare-dao.eth` | `paramedic123` |
+| Researcher | `researcher@medicare-dao.eth` | `researcher123` |
+
+### Self-Hosting
+
+<details>
+<summary>Click to expand self-hosting instructions</summary>
+
+#### 1. Set Up Supabase
 
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** and paste the contents of `backend/supabase-schema.sql`
 3. Run the SQL — this creates the `users`, `sessions`, `worldid_verifications`, and `audit_log` tables
 4. Copy your **Project URL** and **Service Role Key** from Settings → API
 
-### 2. Deploy Backend to Railway
+#### 2. Deploy Backend to Railway
 
 1. Create a free account at [railway.app](https://railway.app)
 2. Connect your GitHub repo, select the `backend/` directory as root
@@ -433,43 +459,33 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...your-key
 JWT_SECRET=your-production-secret
 RPC_URL=https://virtual.sepolia.eu.rpc.tenderly.co/...
 PRIVATE_KEY=your-deployer-private-key
-CHAIN_ID=99911155111
-EHR_STORAGE_ADDRESS=0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00
-INSURANCE_POLICY_ADDRESS=0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1
-SUPPLY_CHAIN_ADDRESS=0xC69B9c117bA7207ae7c28796718e950fD2eE3507
-CREDENTIAL_REGISTRY_ADDRESS=0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A
-GOVERNANCE_ADDRESS=0xB5095Ecbf55E739395e346A6ebEA1701D47d5556
-PINATA_API_KEY=your-pinata-key
-PINATA_SECRET_KEY=your-pinata-secret
-AZURE_OPENAI_ENDPOINT=https://your-endpoint.cognitiveservices.azure.com
-AZURE_OPENAI_API_KEY=your-key
-WORLDID_APP_ID=your-world-id-app
-ENCRYPTION_KEY=your-32-byte-key
 NODE_ENV=production
 ```
 
 4. Railway will auto-build from the Dockerfile and deploy
 
-### 3. Deploy Frontend to Vercel
+#### 3. Deploy Frontend to Railway
 
-1. Create a free account at [vercel.com](https://vercel.com)
-2. Import your GitHub repo, set root directory to `frontend/`
-3. Add these environment variables:
+1. Create a new Railway service for the frontend
+2. Set root directory to `frontend/`
+3. Add these environment variables (they get baked-in during Docker build):
 
 ```
-NEXT_PUBLIC_API_URL=https://your-railway-app.up.railway.app
+NEXT_PUBLIC_API_URL=https://your-railway-backend.up.railway.app
 NEXT_PUBLIC_CHAIN_ID=99911155111
 NEXT_PUBLIC_RPC_URL=https://virtual.sepolia.eu.rpc.tenderly.co/...
-NEXT_PUBLIC_EHR_ADDRESS=0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00
-NEXT_PUBLIC_INSURANCE_ADDRESS=0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1
-NEXT_PUBLIC_SUPPLY_ADDRESS=0xC69B9c117bA7207ae7c28796718e950fD2eE3507
-NEXT_PUBLIC_CREDENTIAL_ADDRESS=0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A
-NEXT_PUBLIC_GOVERNANCE_ADDRESS=0xB5095Ecbf55E739395e346A6ebEA1701D47d5556
-NEXT_PUBLIC_STABLECOIN_ADDRESS=0x7Cf6cb620c2617887DC0Df5Faf8b14A984404f98
+NEXT_PUBLIC_EHR_ADDRESS=0x...
+NEXT_PUBLIC_INSURANCE_ADDRESS=0x...
+NEXT_PUBLIC_SUPPLY_ADDRESS=0x...
+NEXT_PUBLIC_CREDENTIAL_ADDRESS=0x...
+NEXT_PUBLIC_GOVERNANCE_ADDRESS=0x...
+NEXT_PUBLIC_STABLECOIN_ADDRESS=0x...
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=demo
 ```
 
-4. Vercel auto-deploys on push — your live URL will be `https://your-app.vercel.app`
+4. Railway builds from `frontend/Dockerfile` (multi-stage, Next.js standalone output)
+
+</details>
 
 ### Guided Demo Tour
 
