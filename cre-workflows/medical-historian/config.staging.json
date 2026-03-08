@@ -1,0 +1,9 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+  "medicalDataUrl": "https://api.medicare-backend.example.com/v1/records",
+  "summarizationUrl": "https://api.medicare-ai.example.com/v1/summarize",
+  "gasLimit": 600000,
+  "lookbackYears": 10,
+  "cronSchedule": "0 2 * * 0"
+}

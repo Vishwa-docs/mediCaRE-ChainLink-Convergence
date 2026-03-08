@@ -37,7 +37,7 @@ export default function ClaimForm({ policyIds = [1, 2, 3, 5, 8], onSubmit }: Cla
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-border dark:bg-surface">
       <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Submit New Claim</h3>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -48,7 +48,7 @@ export default function ClaimForm({ policyIds = [1, 2, 3, 5, 8], onSubmit }: Cla
           <select
             value={policyId}
             onChange={(e) => setPolicyId(Number(e.target.value))}
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
           >
             {policyIds.map((id) => (
               <option key={id} value={id}>
@@ -71,7 +71,7 @@ export default function ClaimForm({ policyIds = [1, 2, 3, 5, 8], onSubmit }: Cla
               onChange={(e) => setAmount(e.target.value)}
               min="0"
               step="0.01"
-              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-7 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-7 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
         </div>
@@ -85,7 +85,7 @@ export default function ClaimForm({ policyIds = [1, 2, 3, 5, 8], onSubmit }: Cla
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="Describe the medical service or procedure…"
-            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
           />
         </div>
 

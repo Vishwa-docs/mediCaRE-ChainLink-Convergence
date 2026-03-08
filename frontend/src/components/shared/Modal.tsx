@@ -38,7 +38,7 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
 
       {/* Content */}
       <div
-        className={`relative z-10 w-full ${sizeMap[size]} mx-4 rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800`}
+        className={`relative z-10 w-full ${sizeMap[size]} mx-4 rounded-xl bg-white p-6 shadow-2xl dark:bg-surface`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>

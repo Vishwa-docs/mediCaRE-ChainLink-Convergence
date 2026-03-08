@@ -174,6 +174,9 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
     error InvalidBatchStatus(uint256 batchId, BatchStatus current, BatchStatus expected);
     error BatchAlreadyRecalled(uint256 batchId);
     error InsufficientBatchBalance(uint256 batchId, address holder, uint256 required, uint256 available);
+    error UnauthorizedSupplyChainActor(address caller);
+    error UnauthorizedToFlag(address caller);
+    error UnauthorizedToRecall(address caller);
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -203,6 +206,17 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
     }
 
     // ──────────────────────────────────────────────
+    //  Internal Helpers
+    // ──────────────────────────────────────────────
+
+    /// @dev Returns true if `account` holds any supply-chain actor role.
+    function _isSupplyChainActor(address account) internal view returns (bool) {
+        return hasRole(MANUFACTURER_ROLE, account)
+            || hasRole(DISTRIBUTOR_ROLE, account)
+            || hasRole(PHARMACY_ROLE, account);
+    }
+
+    // ──────────────────────────────────────────────
     //  Batch Lifecycle
     // ──────────────────────────────────────────────
 
@@ -229,7 +243,7 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
         if (quantity == 0) revert InvalidQuantity();
         if (expiryDate <= manufactureDate) revert InvalidDates();
 
-        batchId = _nextBatchId++;
+        unchecked { batchId = _nextBatchId++; }
         _batches[batchId] = Batch({
             batchId: batchId,
             manufacturer: msg.sender,
@@ -273,12 +287,7 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
         }
 
         // Only authorised supply-chain actors may participate.
-        require(
-            hasRole(MANUFACTURER_ROLE, msg.sender) ||
-            hasRole(DISTRIBUTOR_ROLE, msg.sender) ||
-            hasRole(PHARMACY_ROLE, msg.sender),
-            "SupplyChain: caller lacks supply-chain role"
-        );
+        if (!_isSupplyChainActor(msg.sender)) revert UnauthorizedSupplyChainActor(msg.sender);
 
         // Update batch status based on the receiver's role.
         BatchStatus oldStatus = b.status;
@@ -321,12 +330,7 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
         bytes32 gpsHash
     ) external {
         if (_batches[batchId].manufacturer == address(0)) revert BatchNotFound(batchId);
-        require(
-            hasRole(MANUFACTURER_ROLE, msg.sender) ||
-            hasRole(DISTRIBUTOR_ROLE, msg.sender) ||
-            hasRole(PHARMACY_ROLE, msg.sender),
-            "SupplyChain: caller lacks supply-chain role"
-        );
+        if (!_isSupplyChainActor(msg.sender)) revert UnauthorizedSupplyChainActor(msg.sender);
 
         _conditionLogs[batchId].push(ConditionLog({
             temperatureHash: temperatureHash,
@@ -348,13 +352,7 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
         Batch storage b = _batches[batchId];
         if (b.manufacturer == address(0)) revert BatchNotFound(batchId);
         if (b.status == BatchStatus.Recalled) revert BatchAlreadyRecalled(batchId);
-        require(
-            hasRole(MANUFACTURER_ROLE, msg.sender) ||
-            hasRole(DISTRIBUTOR_ROLE, msg.sender) ||
-            hasRole(PHARMACY_ROLE, msg.sender) ||
-            hasRole(ADMIN_ROLE, msg.sender),
-            "SupplyChain: caller lacks authority to flag"
-        );
+        if (!_isSupplyChainActor(msg.sender) && !hasRole(ADMIN_ROLE, msg.sender)) revert UnauthorizedToFlag(msg.sender);
 
         BatchStatus oldStatus = b.status;
         b.status = BatchStatus.Flagged;
@@ -373,10 +371,7 @@ contract SupplyChain is ERC1155, AccessControl, ReentrancyGuard, AccessManager {
         Batch storage b = _batches[batchId];
         if (b.manufacturer == address(0)) revert BatchNotFound(batchId);
         if (b.status == BatchStatus.Recalled) revert BatchAlreadyRecalled(batchId);
-        require(
-            hasRole(ADMIN_ROLE, msg.sender) || msg.sender == b.manufacturer,
-            "SupplyChain: only admin or manufacturer can recall"
-        );
+        if (!hasRole(ADMIN_ROLE, msg.sender) && msg.sender != b.manufacturer) revert UnauthorizedToRecall(msg.sender);
 
         BatchStatus oldStatus = b.status;
         b.status = BatchStatus.Recalled;

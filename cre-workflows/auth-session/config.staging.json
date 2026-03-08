@@ -1,0 +1,9 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "credentialRegistryAddress": "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
+  "worldIdVerifierUrl": "https://developer.worldcoin.org/api/v2/verify",
+  "jwtIssuer": "medicare-cre-auth",
+  "sessionTTLMinutes": 1440,
+  "authorizedEVMAddress": "0x7637B8d8F469904c8Eb5F6e0E76A6EFd1ECA3c77",
+  "gasLimit": 500000
+}

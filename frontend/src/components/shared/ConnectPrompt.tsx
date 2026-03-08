@@ -25,10 +25,10 @@ export default function ConnectPrompt({
 }: ConnectPromptProps) {
   return (
     <div
-      className={`mx-auto flex max-w-lg flex-col items-center rounded-2xl border border-gray-200 bg-white px-8 py-12 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800 ${className}`}
+      className={`mx-auto flex max-w-lg flex-col items-center rounded-2xl border border-gray-200 bg-white px-8 py-12 text-center shadow-sm dark:border-border dark:bg-surface ${className}`}
     >
       {/* Icon */}
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light">
         <Wallet className="h-8 w-8" />
       </div>
 

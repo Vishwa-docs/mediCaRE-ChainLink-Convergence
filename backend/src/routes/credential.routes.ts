@@ -4,7 +4,9 @@ import {
   getCredentialRegistryContract,
   waitForTx,
   parseEvent,
+  toBytes32Hash,
 } from "../services/blockchain";
+import { trackCredentialIssued } from "../services/analytics";
 import { createLogger } from "../utils/logging";
 
 const log = createLogger("routes:credential");
@@ -33,9 +35,10 @@ router.post(
       const contract = getCredentialRegistryContract();
 
       const tx = await contract.issueCredential(
+        body.credentialHash,
         body.subject,
         body.credentialType,
-        body.credentialHash,
+        body.issuanceDate ?? Math.floor(Date.now() / 1000),
         body.expiryDate,
       );
       const receipt = await waitForTx(tx);
@@ -48,6 +51,8 @@ router.post(
         subject: body.subject,
         type: CREDENTIAL_TYPE_LABELS[body.credentialType] ?? "UNKNOWN",
       });
+
+      trackCredentialIssued(body.subject, Number(credentialId), CREDENTIAL_TYPE_LABELS[body.credentialType] ?? "UNKNOWN");
 
       res.status(201).json({
         success: true,
@@ -70,33 +75,32 @@ router.post(
 );
 
 /**
- * GET /api/credentials/verify/:hash
- * Verify a credential by its document hash.
+ * GET /api/credentials/verify/:credentialId
+ * Verify a credential by its on-chain ID.
  */
 router.get(
-  "/verify/:hash",
+  "/verify/:credentialId",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { hash } = req.params;
+      const credentialId = parseInt(req.params.credentialId, 10);
 
-      if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+      if (isNaN(credentialId) || credentialId < 0) {
         res.status(400).json({
           success: false,
-          error: "Invalid credential hash format (expected bytes32)",
+          error: "Invalid credential ID",
           timestamp: new Date().toISOString(),
         });
         return;
       }
 
       const contract = getCredentialRegistryContract();
-      const [isValid, credentialId] =
-        await contract.verifyCredentialByHash(hash);
+      const isValid = await contract.verifyCredential(credentialId);
 
       if (!isValid) {
         res.json({
           success: true,
           data: {
-            credentialHash: hash,
+            credentialId,
             isValid: false,
             message:
               "Credential not found or has been revoked.",
@@ -111,9 +115,9 @@ router.get(
       res.json({
         success: true,
         data: {
-          credentialHash: hash,
-          isValid: true,
           credentialId: credentialId.toString(),
+          credentialHash: c.credentialHash,
+          isValid: true,
           issuer: c.issuer,
           subject: c.subject,
           credentialType:

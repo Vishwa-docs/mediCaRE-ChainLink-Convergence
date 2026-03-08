@@ -6,6 +6,7 @@ import {
   toBytes32Hash,
   parseEvent,
 } from "../services/blockchain";
+import { trackPolicyCreated, trackClaimSubmitted, trackClaimProcessed } from "../services/analytics";
 import { createLogger } from "../utils/logging";
 
 const log = createLogger("routes:insurance");
@@ -22,13 +23,12 @@ router.post(
       const body = validate(createPolicySchema, req.body);
       const contract = getInsurancePolicyContract();
 
-      const expiryDate = Math.floor(Date.now() / 1000) + body.durationDays * 86400;
-
       const tx = await contract.createPolicy(
         body.holder,
         body.coverageAmount,
         body.premiumAmount,
-        expiryDate,
+        body.durationDays,
+        body.riskScore ?? 0,
       );
       const receipt = await waitForTx(tx);
 
@@ -41,6 +41,8 @@ router.post(
         coverage: body.coverageAmount,
       });
 
+      trackPolicyCreated(body.holder, Number(policyId), Number(body.coverageAmount));
+
       res.status(201).json({
         success: true,
         data: {
@@ -48,7 +50,8 @@ router.post(
           holder: body.holder,
           coverageAmount: body.coverageAmount,
           premiumAmount: body.premiumAmount,
-          expiryDate,
+          durationDays: body.durationDays,
+          riskScore: body.riskScore ?? 0,
           transactionHash: receipt.hash,
           blockNumber: receipt.blockNumber,
         },
@@ -71,13 +74,12 @@ router.post(
       const body = validate(submitClaimSchema, req.body);
       const contract = getInsurancePolicyContract();
 
-      const evidenceHash = toBytes32Hash(body.evidenceCid);
+      const descriptionHash = toBytes32Hash(body.description);
 
       const tx = await contract.submitClaim(
         body.policyId,
         body.amount,
-        body.reason,
-        evidenceHash,
+        descriptionHash,
       );
       const receipt = await waitForTx(tx);
 
@@ -90,13 +92,15 @@ router.post(
         amount: body.amount,
       });
 
+      trackClaimSubmitted(req.body.holder ?? "unknown", Number(claimId), body.policyId, Number(body.amount));
+
       res.status(201).json({
         success: true,
         data: {
           claimId,
           policyId: body.policyId,
           amount: body.amount,
-          reason: body.reason,
+          description: body.description,
           transactionHash: receipt.hash,
           blockNumber: receipt.blockNumber,
         },
@@ -140,6 +144,103 @@ router.get(
           isActive: p.isActive,
           riskScore: Number(p.riskScore),
         },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * GET /api/insurance/policies/:holder
+ * Retrieve all policies for a given holder address.
+ */
+router.get(
+  "/policies/:holder",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const holder = req.params.holder;
+      const contract = getInsurancePolicyContract();
+
+      let policies: any[] = [];
+      try {
+        const policyIds: bigint[] = await contract.getHolderPolicies(holder);
+        for (const id of policyIds) {
+          try {
+            const p = await contract.getPolicy(id);
+            policies.push({
+              policyId: p.policyId.toString(),
+              holder: p.holder,
+              coverageAmount: p.coverageAmount.toString(),
+              premiumAmount: p.premiumAmount.toString(),
+              expiryDate: Number(p.expiryDate),
+              isActive: p.isActive,
+              riskScore: Number(p.riskScore),
+            });
+          } catch {
+            log.warn("Failed to fetch policy", { policyId: id.toString() });
+          }
+        }
+      } catch {
+        log.info("No policies found for holder", { holder });
+      }
+
+      res.json({
+        success: true,
+        data: { policies },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * GET /api/insurance/claims/:holder
+ * Retrieve all claims for policies owned by the given holder address.
+ */
+router.get(
+  "/claims/:holder",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const holder = req.params.holder;
+      const contract = getInsurancePolicyContract();
+
+      let claims: any[] = [];
+      try {
+        const policyIds: bigint[] = await contract.getHolderPolicies(holder);
+        for (const pid of policyIds) {
+          try {
+            const claimIds: bigint[] = await contract.getPolicyClaims(pid);
+            for (const cid of claimIds) {
+              try {
+                const c = await contract.getClaim(cid);
+                claims.push({
+                  claimId: c.claimId.toString(),
+                  policyId: c.policyId.toString(),
+                  claimant: c.claimant,
+                  amount: c.amount.toString(),
+                  descriptionHash: c.descriptionHash,
+                  status: Number(c.status),
+                  submittedAt: Number(c.submittedAt),
+                });
+              } catch {
+                log.warn("Failed to fetch claim", { claimId: cid.toString() });
+              }
+            }
+          } catch {
+            // No claims for this policy
+          }
+        }
+      } catch {
+        log.info("No policies/claims found for holder", { holder });
+      }
+
+      res.json({
+        success: true,
+        data: { claims },
         timestamp: new Date().toISOString(),
       });
     } catch (err) {

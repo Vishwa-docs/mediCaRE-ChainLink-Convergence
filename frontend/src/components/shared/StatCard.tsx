@@ -14,7 +14,7 @@ interface StatCardProps {
 export default function StatCard({ title, value, subtitle, icon, trend, className = "" }: StatCardProps) {
   return (
     <div
-      className={`rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 ${className}`}
+      className={`rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-border dark:bg-surface ${className}`}
     >
       <div className="flex items-start justify-between">
         <div>
@@ -33,7 +33,7 @@ export default function StatCard({ title, value, subtitle, icon, trend, classNam
             </p>
           )}
         </div>
-        <div className="rounded-lg bg-blue-50 p-3 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+        <div className="rounded-lg bg-primary/10 p-3 text-primary dark:bg-primary/20 dark:text-primary-light">
           {icon}
         </div>
       </div>

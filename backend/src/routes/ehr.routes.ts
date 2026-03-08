@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { ethers } from "ethers";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import { validate, ehrUploadSchema, ehrSummarizeSchema } from "../utils/validators";
@@ -10,6 +11,7 @@ import {
   parseEvent,
 } from "../services/blockchain";
 import { summariseEHR } from "../ai/summarizer";
+import { trackRecordCreated } from "../services/analytics";
 import { createLogger } from "../utils/logging";
 
 const log = createLogger("routes:ehr");
@@ -56,12 +58,14 @@ router.post(
         recordType: body.recordType,
       });
 
-      // 2. Register on-chain
+      // 2. Register on-chain (with empty AI summary hash initially)
       const contract = getEHRStorageContract();
       const cidHash = toBytes32Hash(cid);
+      const emptySummaryHash = ethers.ZeroHash; // will be updated after AI summarization
       const tx = await contract.addRecord(
         body.patientAddress,
         cidHash,
+        emptySummaryHash,
         body.recordType,
       );
       const receipt = await waitForTx(tx);
@@ -74,6 +78,8 @@ router.post(
         cid,
         patientAddress: body.patientAddress,
       });
+
+      trackRecordCreated(body.patientAddress, Number(recordId), body.recordType);
 
       res.status(201).json({
         success: true,
@@ -103,7 +109,7 @@ router.get(
       const { patientAddress } = req.params;
       const contract = getEHRStorageContract();
 
-      const recordIds: bigint[] = await contract.getPatientRecordIds(
+      const recordIds: bigint[] = await contract.getPatientRecords(
         patientAddress,
       );
 

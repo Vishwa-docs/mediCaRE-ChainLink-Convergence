@@ -17,21 +17,12 @@ const STATUS_CONFIG: Record<
   4: { label: "Recalled", variant: "danger", icon: <RotateCcw className="h-4 w-4" /> },
 };
 
-const MOCK_BATCHES: SupplyBatch[] = [
-  { batchId: 78, manufacturer: "0xPharma…1a2b", lotNumber: "LOT-2026-001", manufactureDate: Date.now() / 1000 - 604800, expiryDate: Date.now() / 1000 + 31536000, quantity: 10000, status: 1, drugName: "Amoxicillin 500mg" },
-  { batchId: 77, manufacturer: "0xMedCo…3c4d", lotNumber: "LOT-2026-002", manufactureDate: Date.now() / 1000 - 1209600, expiryDate: Date.now() / 1000 + 15768000, quantity: 5000, status: 2, drugName: "Lisinopril 10mg" },
-  { batchId: 76, manufacturer: "0xPharma…1a2b", lotNumber: "LOT-2025-089", manufactureDate: Date.now() / 1000 - 2592000, expiryDate: Date.now() / 1000 + 23652000, quantity: 20000, status: 0, drugName: "Atorvastatin 40mg" },
-  { batchId: 75, manufacturer: "0xBioGen…5e6f", lotNumber: "LOT-2025-088", manufactureDate: Date.now() / 1000 - 5184000, expiryDate: Date.now() / 1000 + 7884000, quantity: 2500, status: 3, drugName: "Insulin Glargine 100U/mL" },
-  { batchId: 74, manufacturer: "0xMedCo…3c4d", lotNumber: "LOT-2025-087", manufactureDate: Date.now() / 1000 - 7776000, expiryDate: Date.now() / 1000 + 7884000, quantity: 15000, status: 4, drugName: "Metformin 1000mg" },
-  { batchId: 73, manufacturer: "0xPharma…1a2b", lotNumber: "LOT-2025-086", manufactureDate: Date.now() / 1000 - 10368000, expiryDate: Date.now() / 1000 + 15768000, quantity: 8000, status: 2, drugName: "Omeprazole 20mg" },
-];
-
 interface BatchTrackerProps {
   batches?: SupplyBatch[];
   onSelectBatch?: (batch: SupplyBatch) => void;
 }
 
-export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: BatchTrackerProps) {
+export default function BatchTracker({ batches = [], onSelectBatch }: BatchTrackerProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<number>(-1);
   const [verifyId, setVerifyId] = useState("");
@@ -48,7 +39,7 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
   return (
     <div className="space-y-4">
       {/* Verification bar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-surface">
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -57,7 +48,7 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
               placeholder="Enter Batch ID to verify…"
               value={verifyId}
               onChange={(e) => setVerifyId(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
           <Button variant="secondary">Verify Authenticity</Button>
@@ -65,8 +56,8 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
       </div>
 
       {/* Batch list */}
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-        <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+      <div className="rounded-xl border border-gray-200 bg-white dark:border-border dark:bg-surface">
+        <div className="border-b border-gray-200 p-4 dark:border-border">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white">Pharmaceutical Batches</h3>
             <div className="flex gap-2">
@@ -77,13 +68,13 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
                   placeholder="Search batches…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none dark:border-border dark:bg-surface dark:text-white"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-primary focus:outline-none dark:border-border dark:bg-surface dark:text-gray-200"
               >
                 <option value={-1}>All Status</option>
                 <option value={0}>Created</option>
@@ -98,7 +89,7 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+            <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-border dark:bg-surface/50 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Batch</th>
                 <th className="px-4 py-3">Drug</th>
@@ -116,7 +107,7 @@ export default function BatchTracker({ batches = MOCK_BATCHES, onSelectBatch }: 
                   <tr
                     key={batch.batchId}
                     onClick={() => onSelectBatch?.(batch)}
-                    className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-750"
+                    className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-surface"
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900 dark:text-white">
                       #{batch.batchId}

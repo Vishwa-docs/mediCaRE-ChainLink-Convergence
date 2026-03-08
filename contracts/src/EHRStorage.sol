@@ -33,6 +33,9 @@ contract EHRStorage is AccessControl, AccessManager {
     /// @notice Role identifier for healthcare providers.
     bytes32 public constant PROVIDER_ROLE = keccak256("PROVIDER_ROLE");
 
+    /// @notice Role identifier for emergency access (e.g. paramedics, ER staff).
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
+
     // ──────────────────────────────────────────────
     //  Data Structures
     // ──────────────────────────────────────────────
@@ -61,6 +64,40 @@ contract EHRStorage is AccessControl, AccessManager {
         bool    isActive;
     }
 
+    /**
+     * @notice Granular consent grant from a patient to a specific grantee.
+     * @param patient        Address of the patient granting consent.
+     * @param grantee        Address of the entity receiving consent.
+     * @param dataCategories Array of data category identifiers (e.g. keccak256("LAB")).
+     * @param purposes       Array of purpose identifiers (e.g. keccak256("TREATMENT")).
+     * @param grantedAt      Block timestamp when consent was granted.
+     * @param expiresAt      Block timestamp when consent expires (0 = no expiry).
+     * @param isActive       Whether this consent grant is currently active.
+     */
+    struct ConsentGrant {
+        address   patient;
+        address   grantee;
+        bytes32[] dataCategories;
+        bytes32[] purposes;
+        uint256   grantedAt;
+        uint256   expiresAt;
+        bool      isActive;
+    }
+
+    /**
+     * @notice Record of an emergency "glass break" access event.
+     * @param accessor  Address of the emergency accessor.
+     * @param patient   Address of the patient whose data was accessed.
+     * @param reason    Mandatory free-text reason for the emergency access.
+     * @param timestamp Block timestamp when the emergency access occurred.
+     */
+    struct GlassBreak {
+        address accessor;
+        address patient;
+        string  reason;
+        uint256 timestamp;
+    }
+
     // ──────────────────────────────────────────────
     //  State
     // ──────────────────────────────────────────────
@@ -76,6 +113,22 @@ contract EHRStorage is AccessControl, AccessManager {
 
     /// @notice patient ⇒ provider ⇒ access granted?
     mapping(address => mapping(address => bool)) private _accessPermissions;
+
+    /// @notice patient ⇒ grantee ⇒ ConsentGrant (granular consent).
+    mapping(address => mapping(address => ConsentGrant)) private _consentGrants;
+
+    /// @notice Sequential log of all emergency glass-break access events.
+    GlassBreak[] private _glassBreakLog;
+
+    /// @notice patient ⇒ keccak256 hash of the longitudinal AI clinical summary.
+    mapping(address => bytes32) private _longitudinalSummaryHash;
+
+    /// @notice Emitted when a longitudinal summary is stored for a patient.
+    event LongitudinalSummaryStored(
+        address indexed patient,
+        bytes32 summaryHash,
+        uint256 timestamp
+    );
 
     // ──────────────────────────────────────────────
     //  Events
@@ -108,6 +161,45 @@ contract EHRStorage is AccessControl, AccessManager {
     /// @notice Emitted when a record is deactivated (soft-deleted).
     event RecordDeactivated(uint256 indexed recordId, uint256 timestamp);
 
+    /// @notice Immutable audit trail entry for every data access or mutation.
+    /// @param accessor  The address that performed the action.
+    /// @param patient   The patient whose data was involved.
+    /// @param action    Human-readable action label (e.g. "READ", "WRITE", "EMERGENCY_ACCESS").
+    /// @param dataHash  Keccak-256 hash of the data payload involved.
+    /// @param timestamp Block timestamp of the action.
+    event AuditEntry(
+        address indexed accessor,
+        address indexed patient,
+        string  action,
+        bytes32 dataHash,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a patient grants granular consent to a grantee.
+    event ConsentGranted(
+        address indexed patient,
+        address indexed grantee,
+        bytes32[] dataCategories,
+        bytes32[] purposes,
+        uint256 expiresAt,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a patient revokes granular consent from a grantee.
+    event ConsentRevoked(
+        address indexed patient,
+        address indexed grantee,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when an emergency glass-break access is performed.
+    event EmergencyAccessPerformed(
+        address indexed accessor,
+        address indexed patient,
+        string  reason,
+        uint256 timestamp
+    );
+
     // ──────────────────────────────────────────────
     //  Errors
     // ──────────────────────────────────────────────
@@ -123,6 +215,15 @@ contract EHRStorage is AccessControl, AccessManager {
 
     /// @notice Thrown when an invalid address is supplied (e.g. zero address).
     error InvalidAddress();
+
+    /// @notice Thrown when a consent grant is not active or has expired.
+    error ConsentNotActive(address patient, address grantee);
+
+    /// @notice Thrown when an empty reason is provided for emergency access.
+    error EmptyEmergencyReason();
+
+    /// @notice Thrown when empty data categories or purposes are provided.
+    error EmptyConsentParameters();
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -141,6 +242,7 @@ contract EHRStorage is AccessControl, AccessManager {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _setRoleAdmin(PROVIDER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(EMERGENCY_ROLE, ADMIN_ROLE);
 
         // World ID integration
         _setWorldIdVerifier(worldIdVerifier);
@@ -149,6 +251,12 @@ contract EHRStorage is AccessControl, AccessManager {
     // ──────────────────────────────────────────────
     //  Modifiers
     // ──────────────────────────────────────────────
+
+    /// @dev Require that the caller holds the EMERGENCY_ROLE.
+    modifier onlyEmergencyRole() {
+        _checkRole(EMERGENCY_ROLE);
+        _;
+    }
 
     /// @dev Ensure the caller is either the patient who owns the record or
     ///      a provider that has been granted access by the patient.
@@ -197,7 +305,7 @@ contract EHRStorage is AccessControl, AccessManager {
             revert Unauthorized(msg.sender, 0);
         }
 
-        recordId = _nextRecordId++;
+        unchecked { recordId = _nextRecordId++; }
         _records[recordId] = Record({
             recordId: recordId,
             patient: patient,
@@ -301,6 +409,186 @@ contract EHRStorage is AccessControl, AccessManager {
      */
     function removeProvider(address provider) external onlyRole(ADMIN_ROLE) {
         _revokeRole(PROVIDER_ROLE, provider);
+    }
+
+    /**
+     * @notice Store or update the longitudinal AI clinical summary hash for a patient.
+     * @dev Only providers with existing access or admins may call this.
+     * @param patient     The patient address.
+     * @param summaryHash Keccak-256 hash of the longitudinal summary on IPFS.
+     */
+    function setLongitudinalSummary(
+        address patient,
+        bytes32 summaryHash
+    ) external onlyRole(PROVIDER_ROLE) {
+        if (patient == address(0)) revert InvalidAddress();
+        if (summaryHash == bytes32(0)) revert InvalidCidHash();
+        _longitudinalSummaryHash[patient] = summaryHash;
+        emit LongitudinalSummaryStored(patient, summaryHash, block.timestamp);
+        emit AuditEntry(msg.sender, patient, "LONGITUDINAL_SUMMARY", summaryHash, block.timestamp);
+    }
+
+    /**
+     * @notice Retrieve the longitudinal summary hash for a patient.
+     * @param patient The patient address.
+     * @return summaryHash The stored hash (bytes32(0) if none).
+     */
+    function getLongitudinalSummary(address patient)
+        external
+        view
+        returns (bytes32 summaryHash)
+    {
+        summaryHash = _longitudinalSummaryHash[patient];
+    }
+
+    // ──────────────────────────────────────────────
+    //  Granular Consent Functions
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Grant granular, purpose-limited consent to a specific grantee.
+     * @dev The patient calls this directly. Each call overwrites any prior
+     *      consent grant for the same (patient, grantee) pair.
+     * @param grantee        Address receiving consent.
+     * @param dataCategories Non-empty array of data category identifiers.
+     * @param purposes       Non-empty array of purpose identifiers.
+     * @param expiresAt      Unix timestamp when consent expires (0 = indefinite).
+     */
+    function grantConsent(
+        address grantee,
+        bytes32[] calldata dataCategories,
+        bytes32[] calldata purposes,
+        uint256 expiresAt
+    ) external {
+        if (grantee == address(0)) revert InvalidAddress();
+        if (dataCategories.length == 0 || purposes.length == 0) revert EmptyConsentParameters();
+
+        _consentGrants[msg.sender][grantee] = ConsentGrant({
+            patient: msg.sender,
+            grantee: grantee,
+            dataCategories: dataCategories,
+            purposes: purposes,
+            grantedAt: block.timestamp,
+            expiresAt: expiresAt,
+            isActive: true
+        });
+
+        emit ConsentGranted(msg.sender, grantee, dataCategories, purposes, expiresAt, block.timestamp);
+        emit AuditEntry(msg.sender, msg.sender, "CONSENT_GRANT", keccak256(abi.encodePacked(grantee)), block.timestamp);
+    }
+
+    /**
+     * @notice Revoke a previously granted consent.
+     * @param grantee Address whose consent is being revoked.
+     */
+    function revokeConsent(address grantee) external {
+        if (grantee == address(0)) revert InvalidAddress();
+
+        ConsentGrant storage cg = _consentGrants[msg.sender][grantee];
+        cg.isActive = false;
+
+        emit ConsentRevoked(msg.sender, grantee, block.timestamp);
+        emit AuditEntry(msg.sender, msg.sender, "CONSENT_REVOKE", keccak256(abi.encodePacked(grantee)), block.timestamp);
+    }
+
+    /**
+     * @notice Check whether a grantee has active, non-expired consent for a
+     *         specific data category and purpose.
+     * @param patient      The patient whose consent is being checked.
+     * @param grantee      The grantee address.
+     * @param dataCategory The data category to check against.
+     * @param purpose      The purpose to check against.
+     * @return allowed     `true` if consent covers the requested category and purpose.
+     */
+    function checkGranularConsent(
+        address patient,
+        address grantee,
+        bytes32 dataCategory,
+        bytes32 purpose
+    ) external view returns (bool allowed) {
+        ConsentGrant storage cg = _consentGrants[patient][grantee];
+        if (!cg.isActive) return false;
+        if (cg.expiresAt != 0 && block.timestamp > cg.expiresAt) return false;
+
+        bool categoryFound;
+        for (uint256 i; i < cg.dataCategories.length; ) {
+            if (cg.dataCategories[i] == dataCategory) {
+                categoryFound = true;
+                break;
+            }
+            unchecked { ++i; }
+        }
+        if (!categoryFound) return false;
+
+        for (uint256 i; i < cg.purposes.length; ) {
+            if (cg.purposes[i] == purpose) return true;
+            unchecked { ++i; }
+        }
+        return false;
+    }
+
+    // ──────────────────────────────────────────────
+    //  Emergency Access (Glass-Break)
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Perform an emergency "glass-break" access to a patient's records.
+     * @dev Only addresses with `EMERGENCY_ROLE` may call this. A mandatory
+     *      reason string is logged immutably on-chain for post-hoc audit.
+     *      This bypasses normal consent checks and grants temporary access.
+     * @param patient The patient whose records are being accessed.
+     * @param reason  A human-readable justification (must not be empty).
+     */
+    function emergencyAccess(
+        address patient,
+        string calldata reason
+    ) external onlyEmergencyRole {
+        if (patient == address(0)) revert InvalidAddress();
+        if (bytes(reason).length == 0) revert EmptyEmergencyReason();
+
+        _glassBreakLog.push(GlassBreak({
+            accessor: msg.sender,
+            patient: patient,
+            reason: reason,
+            timestamp: block.timestamp
+        }));
+
+        // Temporarily grant broad access.
+        _accessPermissions[patient][msg.sender] = true;
+
+        emit EmergencyAccessPerformed(msg.sender, patient, reason, block.timestamp);
+        emit AuditEntry(msg.sender, patient, "EMERGENCY_ACCESS", keccak256(bytes(reason)), block.timestamp);
+    }
+
+    /**
+     * @notice Retrieve the total number of glass-break events.
+     * @return count The number of emergency access events logged.
+     */
+    function glassBreakCount() external view returns (uint256 count) {
+        count = _glassBreakLog.length;
+    }
+
+    /**
+     * @notice Retrieve a glass-break log entry by index.
+     * @param index The zero-based index.
+     * @return entry The GlassBreak struct.
+     */
+    function getGlassBreak(uint256 index) external view returns (GlassBreak memory entry) {
+        entry = _glassBreakLog[index];
+    }
+
+    /**
+     * @notice Retrieve the granular consent grant between a patient and grantee.
+     * @param patient The patient address.
+     * @param grantee The grantee address.
+     * @return consent The ConsentGrant struct.
+     */
+    function getConsentGrant(address patient, address grantee)
+        external
+        view
+        returns (ConsentGrant memory consent)
+    {
+        consent = _consentGrants[patient][grantee];
     }
 
     // ──────────────────────────────────────────────

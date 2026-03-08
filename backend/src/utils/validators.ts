@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VitalMetric } from "../types";
 
 /** Ethereum address (0x-prefixed, 42 chars). */
 export const addressSchema = z
@@ -29,13 +30,13 @@ export const createPolicySchema = z.object({
   coverageAmount: z.string().min(1),
   premiumAmount: z.string().min(1),
   durationDays: z.number().int().positive().max(3650),
+  riskScore: z.number().int().nonnegative().optional(),
 });
 
 export const submitClaimSchema = z.object({
   policyId: z.coerce.number().int().nonnegative(),
   amount: z.string().min(1),
-  reason: z.string().min(5).max(2000),
-  evidenceCid: z.string().min(1).max(200),
+  description: z.string().min(5).max(2000),
 });
 
 // ─── Supply Chain ───────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ export const createBatchSchema = z.object({
   lotNumber: z.string().min(1).max(100),
   quantity: z.number().int().positive(),
   expiryDate: z.number().int().positive(),
+  manufactureDate: z.number().int().positive().optional(),
 });
 
 export const verifyBatchSchema = z.object({
@@ -60,6 +62,7 @@ export const issueCredentialSchema = z.object({
   credentialHash: z
     .string()
     .regex(/^0x[0-9a-fA-F]{64}$/, "Invalid bytes32 hash"),
+  issuanceDate: z.number().int().nonnegative().optional(),
   expiryDate: z.number().int().nonnegative(),
 });
 
@@ -76,17 +79,11 @@ export const riskScoreSchema = z.object({
   systolicBP: z.number().positive().max(300),
   fastingGlucose: z.number().positive().max(1000),
   cholesterol: z.number().positive().max(1000),
+  policyId: z.coerce.number().int().nonnegative().optional(),
 });
 
 export const anomalyDetectSchema = z.object({
-  metric: z.enum([
-    "HEART_RATE",
-    "SYSTOLIC_BP",
-    "DIASTOLIC_BP",
-    "BLOOD_GLUCOSE",
-    "TEMPERATURE",
-    "OXYGEN_SATURATION",
-  ]),
+  metric: z.nativeEnum(VitalMetric),
   values: z.array(z.number()).min(5).max(10_000),
   timestamps: z.array(z.number()).min(5).max(10_000),
 });
@@ -106,6 +103,19 @@ export const loginSchema = z.object({
   address: addressSchema,
   signature: z.string().min(1),
   message: z.string().min(1),
+});
+
+// ─── Visit Summaries ────────────────────────────────────────────────────────
+
+export const preVisitSummarySchema = z.object({
+  patientAddress: addressSchema,
+  language: z.string().min(2).max(10).default("en"),
+});
+
+export const postVisitSummarySchema = z.object({
+  patientAddress: addressSchema,
+  visitNotes: z.string().min(10).max(100_000),
+  language: z.string().min(2).max(10).default("en"),
 });
 
 /**

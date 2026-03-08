@@ -60,7 +60,7 @@ export default function RecordUploader({ onUpload }: RecordUploaderProps) {
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-border dark:bg-surface">
       <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Upload Health Record</h3>
 
       {/* Patient address */}
@@ -73,7 +73,7 @@ export default function RecordUploader({ onUpload }: RecordUploaderProps) {
           placeholder="0x…"
           value={patientAddress}
           onChange={(e) => setPatientAddress(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white dark:placeholder-gray-500"
         />
       </div>
 
@@ -85,7 +85,7 @@ export default function RecordUploader({ onUpload }: RecordUploaderProps) {
         <select
           value={recordType}
           onChange={(e) => setRecordType(e.target.value as RecordType)}
-          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
         >
           {RECORD_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -104,7 +104,7 @@ export default function RecordUploader({ onUpload }: RecordUploaderProps) {
           ${
             file
               ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
-              : "border-gray-300 hover:border-blue-400 hover:bg-blue-50 dark:border-gray-600 dark:hover:border-blue-500 dark:hover:bg-blue-900/10"
+              : "border-gray-300 hover:border-primary hover:bg-primary/10 dark:border-border dark:hover:border-primary dark:hover:bg-primary/10"
           }`}
       >
         <input

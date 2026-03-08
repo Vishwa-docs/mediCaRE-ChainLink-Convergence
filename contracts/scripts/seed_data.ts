@@ -353,16 +353,125 @@ async function main(): Promise<void> {
   console.log(`    → ${proposals.length} proposals + 1 vote seeded\n`);
 
   // ────────────────────────────────────────────────────────────
+  //  6.  Longitudinal Summary (EHRStorage — new feature)
+  // ────────────────────────────────────────────────────────────
+  console.log("🧬  Seeding longitudinal summaries...\n");
+
+  const longitudinalSummaryHash = toBytes32(
+    JSON.stringify({
+      patient: "demo-patient",
+      conditions: ["Type 2 Diabetes", "Hypertension"],
+      medications: [
+        { name: "Metformin", dosage: "500mg", frequency: "BID", since: "2024-03" },
+        { name: "Lisinopril", dosage: "10mg", frequency: "QD", since: "2024-06" },
+        { name: "Atorvastatin", dosage: "20mg", frequency: "QHS", since: "2024-06" },
+      ],
+      allergies: ["Penicillin", "Latex", "Sulfa drugs"],
+      interactions: [
+        { drugs: ["Metformin", "Lisinopril"], severity: "low", note: "Monitor renal function" },
+      ],
+      redFlags: ["HbA1c trending upward — 6.4 → 7.1 over 6 months"],
+      generatedAt: new Date().toISOString(),
+    }),
+  );
+
+  tx = await ehr.setLongitudinalSummary(deployerAddress, longitudinalSummaryHash);
+  await tx.wait();
+  console.log("    ✅  Longitudinal summary stored on-chain for demo patient\n");
+
+  // ────────────────────────────────────────────────────────────
+  //  7.  AI Explanation Hash (InsurancePolicy — new feature)
+  // ────────────────────────────────────────────────────────────
+  console.log("🤖  Seeding AI explanation hashes...\n");
+
+  const explanationHash = toBytes32(
+    JSON.stringify({
+      model: "ClaimAdjudicator-BFT-v1",
+      decisionType: "CLAIM_ADJUDICATION",
+      confidence: 0.94,
+      keyFactors: [
+        { factor: "Medical coding validity", influence: 0.35, direction: "positive" },
+        { factor: "Provider credentialing status", influence: 0.25, direction: "positive" },
+        { factor: "Historical claim pattern", influence: 0.20, direction: "positive" },
+        { factor: "Treatment-diagnosis alignment", influence: 0.15, direction: "positive" },
+        { factor: "Claim amount percentile", influence: 0.05, direction: "neutral" },
+      ],
+      agentConsensus: {
+        triageBot: { recommendation: "APPROVE", confidence: 0.92 },
+        codingBot: { recommendation: "APPROVE", confidence: 0.96 },
+        fraudDetectorBot: { recommendation: "APPROVE", confidence: 0.93 },
+      },
+      bftResult: "UNANIMOUS_APPROVE",
+    }),
+  );
+
+  tx = await ins.setExplanationHash(0, explanationHash);
+  await tx.wait();
+  console.log("    ✅  Explanation hash set for claim #0\n");
+
+  // ────────────────────────────────────────────────────────────
+  //  8.  Research Proposals + IRB Scores (Governance — new)
+  // ────────────────────────────────────────────────────────────
+  console.log("🔬  Seeding research proposals & IRB scores...\n");
+
+  const researchProposals = [
+    {
+      protocolHash: toBytes32("protocol-glp1-diabetes-2026-v2"),
+      title: "Novel GLP-1 Agonist for Type 2 Diabetes Management",
+      institution: "Stanford Medical Center",
+      irbScore: 87,
+    },
+    {
+      protocolHash: toBytes32("protocol-ai-hypertension-2026-v1"),
+      title: "AI-Guided Hypertension Treatment Protocol",
+      institution: "Mayo Clinic Research",
+      irbScore: 92,
+    },
+  ];
+
+  for (const rp of researchProposals) {
+    tx = await gov.submitResearchProposal(
+      rp.protocolHash,
+      rp.title,
+      rp.institution,
+    );
+    await tx.wait();
+    console.log(`    ✅  Research proposal submitted: ${rp.title}`);
+  }
+
+  // Record IRB scores (deployer has EXECUTOR_ROLE)
+  for (let i = 0; i < researchProposals.length; i++) {
+    tx = await gov.recordIRBScore(i, researchProposals[i].irbScore);
+    await tx.wait();
+    console.log(`    ✅  IRB score recorded: ${researchProposals[i].irbScore}/100 for proposal #${i}`);
+  }
+
+  console.log(`    → ${researchProposals.length} research proposals seeded\n`);
+
+  // ────────────────────────────────────────────────────────────
+  //  9.  Research Consent (Governance — new)
+  // ────────────────────────────────────────────────────────────
+  console.log("✅  Seeding research consent...\n");
+
+  tx = await gov.setResearchConsent(true);
+  await tx.wait();
+  console.log("    ✅  Research consent granted for deployer address\n");
+
+  // ────────────────────────────────────────────────────────────
   //  Summary
   // ────────────────────────────────────────────────────────────
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  Seed Data Summary");
   console.log("═══════════════════════════════════════════════════════════");
   console.log(`  EHR Records          : ${ehrRecords.length}`);
+  console.log(`  Longitudinal Summary : 1`);
   console.log(`  Insurance Policies   : ${policies.length} (+1 claim)`);
+  console.log(`  AI Explanations      : 1`);
   console.log(`  Supply Chain Batches : ${batches.length} (+conditions)`);
   console.log(`  Provider Credentials : ${credentials.length}`);
   console.log(`  Governance Proposals : ${proposals.length} (+1 vote)`);
+  console.log(`  Research Proposals   : ${researchProposals.length} (+IRB scores)`);
+  console.log(`  Research Consent     : 1`);
   console.log("═══════════════════════════════════════════════════════════");
   console.log("\n🎉  Seeding complete!\n");
 }

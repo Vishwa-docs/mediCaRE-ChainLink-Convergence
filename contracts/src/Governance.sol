@@ -34,6 +34,9 @@ contract Governance is AccessControl, ReentrancyGuard {
     /// @notice Role that is allowed to execute proposals after timelock.
     bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
 
+    /// @notice Role for multi-sig signers on critical proposals.
+    bytes32 public constant MULTI_SIG_ROLE = keccak256("MULTI_SIG_ROLE");
+
     // ──────────────────────────────────────────────
     //  Enums
     // ──────────────────────────────────────────────
@@ -43,7 +46,8 @@ contract Governance is AccessControl, ReentrancyGuard {
         PARAMETER_CHANGE,
         RISK_THRESHOLD,
         DATA_SHARING,
-        PROTOCOL_UPGRADE
+        PROTOCOL_UPGRADE,
+        IRB_REVIEW
     }
 
     /// @notice Lifecycle status of a proposal.
@@ -122,6 +126,40 @@ contract Governance is AccessControl, ReentrancyGuard {
     /// @notice Delay (seconds) between a proposal succeeding and being executable.
     uint256 public executionDelay;
 
+    // ── Multi-sig for critical proposals ──
+
+    /// @notice ProposalType ⇒ whether multi-sig approval is required.
+    mapping(ProposalType => bool) public multiSigRequired;
+
+    /// @notice proposalId ⇒ signer ⇒ has approved?
+    mapping(uint256 => mapping(address => bool)) private _multiSigApprovals;
+
+    /// @notice proposalId ⇒ number of multi-sig approvals received.
+    mapping(uint256 => uint256) private _multiSigApprovalCount;
+
+    /// @notice Number of multi-sig approvals required for execution.
+    uint256 public multiSigThreshold;
+
+    // ── Research & IRB ──
+
+    /// @notice Research proposal metadata.
+    struct ResearchProposal {
+        uint256 proposalId;
+        address researcher;
+        string  title;
+        string  description;
+        bytes32 protocolHash;
+        uint256 irbScore;
+        bool    irbReviewed;
+        uint256 submittedAt;
+    }
+
+    /// @notice proposalId ⇒ ResearchProposal.
+    mapping(uint256 => ResearchProposal) private _researchProposals;
+
+    /// @notice patient ⇒ has given research consent.
+    mapping(address => bool) public researchConsent;
+
     // ──────────────────────────────────────────────
     //  Events
     // ──────────────────────────────────────────────
@@ -154,6 +192,43 @@ contract Governance is AccessControl, ReentrancyGuard {
         uint256 executionDelay
     );
 
+    /// @notice Emitted when a multi-sig signer approves a critical proposal.
+    event MultiSigApproval(
+        uint256 indexed proposalId,
+        address indexed signer,
+        uint256 approvalCount,
+        uint256 threshold
+    );
+
+    /// @notice Emitted when multi-sig requirement is toggled for a proposal type.
+    event MultiSigRequirementUpdated(
+        ProposalType indexed proposalType,
+        bool required
+    );
+
+    /// @notice Emitted when a research proposal is submitted.
+    event ResearchProposalSubmitted(
+        uint256 indexed proposalId,
+        address indexed researcher,
+        string  title,
+        bytes32 protocolHash,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when an IRB score is recorded for a research proposal.
+    event IRBScoreRecorded(
+        uint256 indexed proposalId,
+        uint256 score,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a patient opts into or out of research data sharing.
+    event ResearchConsentUpdated(
+        address indexed patient,
+        bool    consented,
+        uint256 timestamp
+    );
+
     // ──────────────────────────────────────────────
     //  Errors
     // ──────────────────────────────────────────────
@@ -172,6 +247,15 @@ contract Governance is AccessControl, ReentrancyGuard {
     error InvalidQuorum();
     error ZeroWeight();
     error DescriptionEmpty();
+
+    /// @notice Thrown when multi-sig approval is required but not met.
+    error MultiSigNotMet(uint256 proposalId, uint256 approvals, uint256 required);
+
+    /// @notice Thrown when a signer has already approved.
+    error AlreadyApprovedMultiSig(address signer, uint256 proposalId);
+
+    /// @notice Thrown when the multi-sig threshold is invalid.
+    error InvalidMultiSigThreshold();
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -208,6 +292,11 @@ contract Governance is AccessControl, ReentrancyGuard {
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(EXECUTOR_ROLE, admin);
         _setRoleAdmin(EXECUTOR_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(MULTI_SIG_ROLE, ADMIN_ROLE);
+
+        // Default: IRB_REVIEW proposals require multi-sig
+        multiSigRequired[ProposalType.IRB_REVIEW] = true;
+        multiSigThreshold = 2; // Default: 2-of-N multi-sig
     }
 
     // ──────────────────────────────────────────────
@@ -238,7 +327,7 @@ contract Governance is AccessControl, ReentrancyGuard {
             revert InsufficientTokenBalance(proposalThreshold, balance);
         }
 
-        proposalId = _nextProposalId++;
+        unchecked { proposalId = _nextProposalId++; }
         uint256 start = block.timestamp;
         uint256 end = start + votingPeriod;
 
@@ -321,6 +410,13 @@ contract Governance is AccessControl, ReentrancyGuard {
         uint256 readyAt = p.endTime + executionDelay;
         if (block.timestamp < readyAt) revert TimelockNotExpired(proposalId, readyAt);
 
+        // Multi-sig enforcement for critical proposal types.
+        if (multiSigRequired[p.proposalType]) {
+            if (_multiSigApprovalCount[proposalId] < multiSigThreshold) {
+                revert MultiSigNotMet(proposalId, _multiSigApprovalCount[proposalId], multiSigThreshold);
+            }
+        }
+
         p.executed = true;
 
         // Execute on-chain call if a target is specified.
@@ -351,8 +447,77 @@ contract Governance is AccessControl, ReentrancyGuard {
     }
 
     // ──────────────────────────────────────────────
+    //  Multi-Sig Approval
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Approve a critical proposal as a multi-sig signer.
+     * @dev Only addresses with `MULTI_SIG_ROLE` may call this. The proposal
+     *      must have succeeded (voting closed, quorum met) but not yet executed.
+     * @param proposalId The proposal to approve.
+     */
+    function approveMultiSig(uint256 proposalId) external onlyRole(MULTI_SIG_ROLE) {
+        Proposal storage p = _proposals[proposalId];
+        if (p.startTime == 0) revert ProposalNotFound(proposalId);
+        if (p.executed) revert ProposalAlreadyExecuted(proposalId);
+        if (p.cancelled) revert ProposalAlreadyCancelled(proposalId);
+        if (_multiSigApprovals[proposalId][msg.sender]) {
+            revert AlreadyApprovedMultiSig(msg.sender, proposalId);
+        }
+
+        _multiSigApprovals[proposalId][msg.sender] = true;
+        _multiSigApprovalCount[proposalId] += 1;
+
+        emit MultiSigApproval(
+            proposalId,
+            msg.sender,
+            _multiSigApprovalCount[proposalId],
+            multiSigThreshold
+        );
+    }
+
+    /**
+     * @notice Check the multi-sig approval status for a proposal.
+     * @param proposalId The proposal ID.
+     * @return approvals Current number of approvals.
+     * @return threshold Required number of approvals.
+     * @return met       Whether the threshold has been met.
+     */
+    function getMultiSigStatus(uint256 proposalId)
+        external
+        view
+        returns (uint256 approvals, uint256 threshold, bool met)
+    {
+        approvals = _multiSigApprovalCount[proposalId];
+        threshold = multiSigThreshold;
+        met = approvals >= threshold;
+    }
+
+    // ──────────────────────────────────────────────
     //  Admin Functions
     // ──────────────────────────────────────────────
+
+    /**
+     * @notice Set whether a proposal type requires multi-sig approval.
+     * @param proposalType The proposal type to configure.
+     * @param required     Whether multi-sig is required.
+     */
+    function setMultiSigRequired(
+        ProposalType proposalType,
+        bool required
+    ) external onlyRole(ADMIN_ROLE) {
+        multiSigRequired[proposalType] = required;
+        emit MultiSigRequirementUpdated(proposalType, required);
+    }
+
+    /**
+     * @notice Update the number of multi-sig approvals required.
+     * @param newThreshold The new threshold (must be > 0).
+     */
+    function setMultiSigThreshold(uint256 newThreshold) external onlyRole(ADMIN_ROLE) {
+        if (newThreshold == 0) revert InvalidMultiSigThreshold();
+        multiSigThreshold = newThreshold;
+    }
 
     /**
      * @notice Update governance parameters.
@@ -469,5 +634,78 @@ contract Governance is AccessControl, ReentrancyGuard {
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    // ──────────────────────────────────────────────
+    //  Research & IRB
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Submit a research proposal for IRB review.
+     * @param title          Title of the research proposal.
+     * @param description    Description of the research.
+     * @param protocolHash   Hash of the full protocol document.
+     * @return proposalId    ID of the created proposal.
+     */
+    function submitResearchProposal(
+        string calldata title,
+        string calldata description,
+        bytes32 protocolHash
+    ) external returns (uint256 proposalId) {
+        if (bytes(title).length == 0) revert DescriptionEmpty();
+
+        unchecked { proposalId = _nextProposalId++; }
+
+        _researchProposals[proposalId] = ResearchProposal({
+            proposalId: proposalId,
+            researcher: msg.sender,
+            title: title,
+            description: description,
+            protocolHash: protocolHash,
+            irbScore: 0,
+            irbReviewed: false,
+            submittedAt: block.timestamp
+        });
+
+        emit ResearchProposalSubmitted(proposalId, msg.sender, title, protocolHash, block.timestamp);
+    }
+
+    /**
+     * @notice Record an IRB compliance score for a research proposal.
+     * @dev Only callable by EXECUTOR_ROLE (CRE IRB Agent).
+     * @param proposalId The research proposal ID.
+     * @param score      IRB compliance score (0–10000 bps).
+     */
+    function recordIRBScore(
+        uint256 proposalId,
+        uint256 score
+    ) external onlyRole(EXECUTOR_ROLE) {
+        ResearchProposal storage rp = _researchProposals[proposalId];
+        require(rp.submittedAt != 0, "Research proposal not found");
+        rp.irbScore = score;
+        rp.irbReviewed = true;
+        emit IRBScoreRecorded(proposalId, score, block.timestamp);
+    }
+
+    /**
+     * @notice Patient opts in or out of anonymized research data sharing.
+     * @param consented Whether the patient consents.
+     */
+    function setResearchConsent(bool consented) external {
+        researchConsent[msg.sender] = consented;
+        emit ResearchConsentUpdated(msg.sender, consented, block.timestamp);
+    }
+
+    /**
+     * @notice Retrieve a research proposal by ID.
+     * @param proposalId The proposal ID.
+     * @return rp The ResearchProposal struct.
+     */
+    function getResearchProposal(uint256 proposalId)
+        external
+        view
+        returns (ResearchProposal memory rp)
+    {
+        rp = _researchProposals[proposalId];
     }
 }

@@ -8,6 +8,7 @@ import routes from "./routes";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import logger from "./utils/logging";
+import { initialiseDatabase } from "./services/database";
 
 const app = express();
 
@@ -47,11 +48,20 @@ app.use(errorHandler);
 // ─── Start Server ───────────────────────────────────────────────────────────
 if (require.main === module) {
   const port = config.port;
-  app.listen(port, () => {
-    logger.info(`mediCaRE backend listening on port ${port}`, {
-      env: config.nodeEnv,
+
+  // Initialise Supabase connection & seed demo users, then start server
+  initialiseDatabase()
+    .then(() => {
+      app.listen(port, () => {
+        logger.info(`mediCaRE backend listening on port ${port}`, {
+          env: config.nodeEnv,
+        });
+      });
+    })
+    .catch((err) => {
+      logger.error("Failed to initialise database", { error: (err as Error).message });
+      process.exit(1);
     });
-  });
 }
 
 export default app;

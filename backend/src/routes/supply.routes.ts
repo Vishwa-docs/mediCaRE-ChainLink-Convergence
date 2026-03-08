@@ -6,6 +6,7 @@ import {
   toBytes32Hash,
   parseEvent,
 } from "../services/blockchain";
+import { trackBatchCreated } from "../services/analytics";
 import { createLogger } from "../utils/logging";
 
 const log = createLogger("routes:supply");
@@ -27,9 +28,10 @@ router.post(
 
       const tx = await contract.createBatch(
         lotHash,
-        drugHash,
+        body.manufactureDate ?? Math.floor(Date.now() / 1000),
         body.expiryDate,
         body.quantity,
+        drugHash,
       );
       const receipt = await waitForTx(tx);
 
@@ -41,6 +43,8 @@ router.post(
         drugName: body.drugName,
         quantity: body.quantity,
       });
+
+      trackBatchCreated(req.body.manufacturer ?? "unknown", Number(batchId), body.quantity);
 
       res.status(201).json({
         success: true,

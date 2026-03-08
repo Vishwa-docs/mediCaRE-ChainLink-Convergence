@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import {
   CONTRACTS,
@@ -21,7 +21,8 @@ const ABI_MAP: Record<ContractName, string[]> = {
   Governance: GOVERNANCE_ABI,
 };
 
-function getProvider() {
+/** Wallet-connected browser provider (for writes + reads). */
+function getBrowserProvider() {
   if (typeof window !== "undefined" && (window as unknown as { ethereum?: ethers.Eip1193Provider }).ethereum) {
     return new ethers.BrowserProvider(
       (window as unknown as { ethereum: ethers.Eip1193Provider }).ethereum
@@ -30,63 +31,44 @@ function getProvider() {
   return null;
 }
 
+/** Read-only JSON-RPC provider using the configured RPC URL (no wallet needed). */
+function getReadOnlyProvider(): ethers.JsonRpcProvider | null {
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+  if (!rpcUrl) return null;
+  return new ethers.JsonRpcProvider(rpcUrl);
+}
+
+/** Returns the best available provider: wallet first, then read-only RPC fallback. */
+function getProvider() {
+  return getBrowserProvider() ?? getReadOnlyProvider();
+}
+
 export function useContract(name: ContractName) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const getReadContract = useCallback(() => {
-    const provider = getProvider();
-    if (!provider) throw new Error("No wallet connected");
-    return new ethers.Contract(CONTRACTS[name], ABI_MAP[name], provider);
-  }, [name]);
-
-  const getWriteContract = useCallback(async () => {
-    const provider = getProvider();
-    if (!provider) throw new Error("No wallet connected");
-    const signer = await provider.getSigner();
-    return new ethers.Contract(CONTRACTS[name], ABI_MAP[name], signer);
-  }, [name]);
-
   const read = useCallback(
     async <T = unknown>(method: string, ...args: unknown[]): Promise<T> => {
-      setLoading(true);
-      setError(null);
-      try {
-        const contract = getReadContract();
-        const result = await contract[method](...args);
-        return result as T;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Contract read failed";
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
+      const provider = getProvider();
+      if (!provider) throw new Error("No provider available — connect wallet or set NEXT_PUBLIC_RPC_URL");
+      const contract = new ethers.Contract(CONTRACTS[name], ABI_MAP[name], provider);
+      const result = await contract[method](...args);
+      return result as T;
     },
-    [getReadContract]
+    [name]
   );
 
   const write = useCallback(
     async (method: string, ...args: unknown[]) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const contract = await getWriteContract();
-        const tx = await contract[method](...args);
-        const receipt = await tx.wait();
-        return receipt;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Transaction failed";
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
+      const provider = getBrowserProvider();
+      if (!provider) throw new Error("No wallet connected — connect MetaMask to sign transactions");
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACTS[name], ABI_MAP[name], signer);
+      const tx = await contract[method](...args);
+      const receipt = await tx.wait();
+      return receipt;
     },
-    [getWriteContract]
+    [name]
   );
 
-  return { read, write, loading, error };
+  return useMemo(() => ({ read, write }), [read, write]);
 }
 
 export function useWalletAddress() {

@@ -40,6 +40,9 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
     /// @notice Role for claims adjusters / processors.
     bytes32 public constant CLAIMS_PROCESSOR_ROLE = keccak256("CLAIMS_PROCESSOR_ROLE");
 
+    /// @notice Role for the CRE (Chainlink Runtime Environment) automation agent.
+    bytes32 public constant CRE_ROLE = keccak256("CRE_ROLE");
+
     /// @notice Maximum risk score in basis points (100 %).
     uint256 public constant MAX_RISK_SCORE = 10_000;
 
@@ -95,8 +98,57 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
         address     claimant;
         uint256     amount;
         bytes32     descriptionHash;
+        bytes32     explanationHash;
         ClaimStatus status;
         uint256     timestamp;
+    }
+
+    /**
+     * @notice Result from a single AI agent during claim adjudication.
+     * @param agentName       Human-readable name of the AI agent (e.g. "TriageBot").
+     * @param score           Confidence score (0–10 000 basis points).
+     * @param recommendation  Encoded recommendation: 0 = Approve, 1 = Reject, 2 = Review.
+     * @param reasonHash      Keccak-256 hash of the detailed reasoning document.
+     */
+    struct AIAgentResult {
+        string  agentName;
+        uint256 score;
+        uint8   recommendation;
+        bytes32 reasonHash;
+    }
+
+    /**
+     * @notice Aggregated AI adjudication result for a claim.
+     * @param claimId            The claim being adjudicated.
+     * @param triageResult       AI triage agent’s result.
+     * @param codingResult       AI medical-coding agent’s result.
+     * @param fraudResult        AI fraud-detection agent’s result.
+     * @param consensusScore     Weighted consensus score (0–10 000 bps).
+     * @param adjudicatedAt      Block timestamp of adjudication.
+     * @param isConsensusReached Whether the agents reached agreement.
+     */
+    struct ClaimAdjudication {
+        uint256       claimId;
+        AIAgentResult triageResult;
+        AIAgentResult codingResult;
+        AIAgentResult fraudResult;
+        uint256       consensusScore;
+        uint256       adjudicatedAt;
+        bool          isConsensusReached;
+    }
+
+    /**
+     * @notice A fraud detection flag raised against a claim.
+     * @param claimId    The claim flagged.
+     * @param flagType   Category of fraud indicator (e.g. keccak256("DUPLICATE")).
+     * @param severity   Severity level (1 = low, 5 = critical).
+     * @param detectedAt Block timestamp of detection.
+     */
+    struct FraudFlag {
+        uint256 claimId;
+        bytes32 flagType;
+        uint8   severity;
+        uint256 detectedAt;
     }
 
     // ──────────────────────────────────────────────
@@ -105,6 +157,9 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
 
     /// @notice The ERC-20 stablecoin used for premiums and payouts.
     IERC20 public immutable stablecoin;
+
+    /// @notice Whether payouts are currently paused (fraud/treasury safety).
+    bool public payoutsPaused;
 
     /// @notice Auto-incrementing policy (== token) counter.
     uint256 private _nextPolicyId;
@@ -123,6 +178,12 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
 
     /// @notice holder address ⇒ array of policy IDs held.
     mapping(address => uint256[]) private _holderPolicyIds;
+
+    /// @notice claimId ⇒ AI adjudication result.
+    mapping(uint256 => ClaimAdjudication) private _claimAdjudications;
+
+    /// @notice claimId ⇒ array of fraud flags raised.
+    mapping(uint256 => FraudFlag[]) private _fraudFlags;
 
     // ──────────────────────────────────────────────
     //  Events
@@ -160,6 +221,63 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
 
     event ClaimPaid(uint256 indexed claimId, uint256 indexed policyId, address recipient, uint256 amount);
 
+    /// @notice Emitted when an AI adjudication is submitted for a claim.
+    event AIAdjudicationSubmitted(
+        uint256 indexed claimId,
+        uint256 consensusScore,
+        bool    isConsensusReached,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a fraud anomaly is detected on a claim.
+    event AnomalyDetected(
+        uint256 indexed claimId,
+        bytes32 indexed flagType,
+        uint8   severity,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a claim is flagged for fraud or anomaly.
+    event ClaimFlagged(
+        uint256 indexed claimId,
+        bytes32 indexed flagType,
+        string  reason,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when payouts are paused by CRE risk monitor.
+    event PayoutsPaused(address indexed pausedBy, string reason, uint256 timestamp);
+
+    /// @notice Emitted when payouts are resumed.
+    event PayoutsResumed(address indexed resumedBy, uint256 timestamp);
+
+    /// @notice Emitted when a cross-chain payout is initiated via CCIP.
+    event CrossChainPayoutInitiated(
+        uint256 indexed claimId,
+        uint256 indexed policyId,
+        uint64  destinationChainSelector,
+        address recipient,
+        uint256 amount,
+        bytes32 ccipMessageId,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when an AI explanation hash is attached to a claim.
+    event ExplanationHashSet(
+        uint256 indexed claimId,
+        bytes32 explanationHash,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a CRE cron job adjusts a premium.
+    event CronPremiumAdjusted(
+        uint256 indexed policyId,
+        uint256 oldPremium,
+        uint256 newPremium,
+        uint256 newRiskScore,
+        uint256 timestamp
+    );
+
     // ──────────────────────────────────────────────
     //  Errors
     // ──────────────────────────────────────────────
@@ -175,6 +293,21 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
     error ClaimExceedsCoverage(uint256 requested, uint256 coverage);
     error NotPolicyholder(address caller, uint256 policyId);
     error InsufficientContractBalance(uint256 required, uint256 available);
+
+    /// @notice Thrown when AI adjudication has already been submitted for a claim.
+    error AdjudicationAlreadyExists(uint256 claimId);
+
+    /// @notice Thrown when an invalid consensus score is provided.
+    error InvalidConsensusScore(uint256 score);
+
+    /// @notice Thrown when payouts are paused.
+    error PayoutsArePaused();
+
+    /// @notice Thrown when payouts are not paused.
+    error PayoutsNotPaused();
+
+    /// @notice Thrown when payouts are already in the requested state.
+    error PayoutsAlreadyInState(bool currentState);
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -198,6 +331,7 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _setRoleAdmin(CLAIMS_PROCESSOR_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(CRE_ROLE, ADMIN_ROLE);
 
         _setWorldIdVerifier(worldIdVerifier);
     }
@@ -233,7 +367,7 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
         if (coverageAmount == 0 || premiumAmount == 0) revert InvalidAmount();
         if (riskScore > MAX_RISK_SCORE) revert InvalidRiskScore(riskScore);
 
-        policyId = _nextPolicyId++;
+        unchecked { policyId = _nextPolicyId++; }
         uint256 expiry = block.timestamp + (durationDays * 1 days);
 
         _policies[policyId] = Policy({
@@ -344,13 +478,14 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
         if (amount == 0) revert InvalidAmount();
         if (amount > p.coverageAmount) revert ClaimExceedsCoverage(amount, p.coverageAmount);
 
-        claimId = _nextClaimId++;
+        unchecked { claimId = _nextClaimId++; }
         _claims[claimId] = Claim({
             claimId: claimId,
             policyId: policyId,
             claimant: msg.sender,
             amount: amount,
             descriptionHash: descriptionHash,
+            explanationHash: bytes32(0),
             status: ClaimStatus.Pending,
             timestamp: block.timestamp
         });
@@ -387,6 +522,7 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
         onlyRole(CLAIMS_PROCESSOR_ROLE)
         nonReentrant
     {
+        if (payoutsPaused) revert PayoutsArePaused();
         Claim storage c = _claims[claimId];
         if (c.timestamp == 0) revert ClaimNotFound(claimId);
         if (c.status != ClaimStatus.Approved) {
@@ -405,8 +541,198 @@ contract InsurancePolicy is ERC721, AccessControl, ReentrancyGuard, AccessManage
     }
 
     // ──────────────────────────────────────────────
+    //  AI Adjudication & Fraud Detection
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Submit an aggregated AI adjudication result for a pending claim.
+     * @dev Only callable by addresses with `CRE_ROLE`. If any fraud flags are
+     *      included, {AnomalyDetected} events are emitted for each flag.
+     * @param claimId        The claim being adjudicated.
+     * @param triageResult   AI triage agent output.
+     * @param codingResult   AI medical-coding agent output.
+     * @param fraudResult    AI fraud-detection agent output.
+     * @param consensusScore Weighted consensus score (0–10 000 bps).
+     * @param fraudFlags     Optional array of fraud flags to record.
+     */
+    function submitAIAdjudication(
+        uint256 claimId,
+        AIAgentResult calldata triageResult,
+        AIAgentResult calldata codingResult,
+        AIAgentResult calldata fraudResult,
+        uint256 consensusScore,
+        FraudFlag[] calldata fraudFlags
+    ) external onlyRole(CRE_ROLE) {
+        Claim storage c = _claims[claimId];
+        if (c.timestamp == 0) revert ClaimNotFound(claimId);
+        if (c.status != ClaimStatus.Pending) {
+            revert InvalidClaimStatus(claimId, c.status, ClaimStatus.Pending);
+        }
+        if (_claimAdjudications[claimId].adjudicatedAt != 0) {
+            revert AdjudicationAlreadyExists(claimId);
+        }
+        if (consensusScore > MAX_RISK_SCORE) revert InvalidConsensusScore(consensusScore);
+
+        // Determine consensus: all three agents must share the same recommendation.
+        bool consensus = (
+            triageResult.recommendation == codingResult.recommendation &&
+            codingResult.recommendation == fraudResult.recommendation
+        );
+
+        _claimAdjudications[claimId] = ClaimAdjudication({
+            claimId: claimId,
+            triageResult: triageResult,
+            codingResult: codingResult,
+            fraudResult: fraudResult,
+            consensusScore: consensusScore,
+            adjudicatedAt: block.timestamp,
+            isConsensusReached: consensus
+        });
+
+        // Record fraud flags.
+        for (uint256 i; i < fraudFlags.length; ) {
+            _fraudFlags[claimId].push(fraudFlags[i]);
+            emit AnomalyDetected(claimId, fraudFlags[i].flagType, fraudFlags[i].severity, block.timestamp);
+            unchecked { ++i; }
+        }
+
+        emit AIAdjudicationSubmitted(claimId, consensusScore, consensus, block.timestamp);
+    }
+
+    /**
+     * @notice CRE cron-triggered premium adjustment based on risk reassessment.
+     * @dev Only callable by addresses with `CRE_ROLE`. Intended to be invoked
+     *      periodically by a Chainlink CRE cron workflow.
+     * @param policyId     The policy to adjust.
+     * @param newPremium   Updated premium amount.
+     * @param newRiskScore Updated risk score (0–10 000 bps).
+     */
+    function adjustPremiumByCron(
+        uint256 policyId,
+        uint256 newPremium,
+        uint256 newRiskScore
+    ) external onlyRole(CRE_ROLE) {
+        if (newPremium == 0) revert InvalidAmount();
+        if (newRiskScore > MAX_RISK_SCORE) revert InvalidRiskScore(newRiskScore);
+
+        Policy storage p = _policies[policyId];
+        if (p.holder == address(0)) revert PolicyNotFound(policyId);
+
+        uint256 oldPremium = p.premiumAmount;
+        p.premiumAmount = newPremium;
+        p.riskScore = newRiskScore;
+
+        emit CronPremiumAdjusted(policyId, oldPremium, newPremium, newRiskScore, block.timestamp);
+    }
+
+    /**
+     * @notice Retrieve the AI adjudication result for a claim.
+     * @param claimId The claim ID.
+     * @return adjudication The ClaimAdjudication struct.
+     */
+    function getClaimAdjudication(uint256 claimId)
+        external
+        view
+        returns (ClaimAdjudication memory adjudication)
+    {
+        adjudication = _claimAdjudications[claimId];
+    }
+
+    /**
+     * @notice Retrieve all fraud flags for a claim.
+     * @param claimId The claim ID.
+     * @return flags Array of FraudFlag structs.
+     */
+    function getClaimFraudFlags(uint256 claimId)
+        external
+        view
+        returns (FraudFlag[] memory flags)
+    {
+        flags = _fraudFlags[claimId];
+    }
+
+    // ──────────────────────────────────────────────
     //  Admin Helpers
     // ──────────────────────────────────────────────
+
+    /**
+     * @notice Attach an AI explanation hash to a processed claim.
+     * @param claimId         The claim to annotate.
+     * @param _explanationHash Keccak-256 hash of the structured AI reasoning document.
+     */
+    function setExplanationHash(
+        uint256 claimId,
+        bytes32 _explanationHash
+    ) external onlyRole(CRE_ROLE) {
+        Claim storage c = _claims[claimId];
+        if (c.timestamp == 0) revert ClaimNotFound(claimId);
+        c.explanationHash = _explanationHash;
+        emit ExplanationHashSet(claimId, _explanationHash, block.timestamp);
+    }
+
+    /**
+     * @notice Flag a claim for fraud or anomaly detection.
+     * @param claimId  The claim to flag.
+     * @param flagType Category of the flag (e.g. keccak256("BILLING_SPIKE")).
+     * @param reason   Human-readable reason for the flag.
+     */
+    function flagClaim(
+        uint256 claimId,
+        bytes32 flagType,
+        string calldata reason
+    ) external onlyRole(CRE_ROLE) {
+        Claim storage c = _claims[claimId];
+        if (c.timestamp == 0) revert ClaimNotFound(claimId);
+        _fraudFlags[claimId].push(FraudFlag({
+            claimId: claimId,
+            flagType: flagType,
+            severity: 3,
+            detectedAt: block.timestamp
+        }));
+        emit ClaimFlagged(claimId, flagType, reason, block.timestamp);
+    }
+
+    /**
+     * @notice Pause all payouts (triggered by CRE risk monitor on anomaly detection).
+     * @param reason Human-readable reason for pausing.
+     */
+    function pausePayouts(string calldata reason) external onlyRole(CRE_ROLE) {
+        if (payoutsPaused) revert PayoutsAlreadyInState(true);
+        payoutsPaused = true;
+        emit PayoutsPaused(msg.sender, reason, block.timestamp);
+    }
+
+    /**
+     * @notice Resume payouts after risk review.
+     */
+    function resumePayouts() external onlyRole(ADMIN_ROLE) {
+        if (!payoutsPaused) revert PayoutsAlreadyInState(false);
+        payoutsPaused = false;
+        emit PayoutsResumed(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Record a cross-chain payout initiation via CCIP.
+     * @param claimId                   The claim being paid.
+     * @param destinationChainSelector  CCIP destination chain selector.
+     * @param recipient                 Recipient address on the destination chain.
+     * @param amount                    Amount being transferred.
+     * @param ccipMessageId             The CCIP message ID for tracking.
+     */
+    function recordCrossChainPayout(
+        uint256 claimId,
+        uint64  destinationChainSelector,
+        address recipient,
+        uint256 amount,
+        bytes32 ccipMessageId
+    ) external onlyRole(CRE_ROLE) {
+        Claim storage c = _claims[claimId];
+        if (c.timestamp == 0) revert ClaimNotFound(claimId);
+        emit CrossChainPayoutInitiated(
+            claimId, c.policyId, destinationChainSelector,
+            recipient, amount, ccipMessageId, block.timestamp
+        );
+    }
 
     /**
      * @notice Update the World ID verifier address.

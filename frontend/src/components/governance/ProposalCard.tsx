@@ -44,7 +44,7 @@ export default function ProposalCard({ proposal, onVote }: ProposalCardProps) {
   const daysLeft = Math.floor(hoursLeft / 24);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-border dark:bg-surface">
       <div className="mb-3 flex items-start justify-between">
         <div className="flex items-center gap-2">
           <Badge variant={cfg.variant}>
@@ -70,7 +70,7 @@ export default function ProposalCard({ proposal, onVote }: ProposalCardProps) {
             Against: {againstVotes.toLocaleString()}
           </span>
         </div>
-        <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+        <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-surface">
           <div className="bg-emerald-500 transition-all" style={{ width: `${forPercent}%` }} />
           <div className="bg-red-500 transition-all" style={{ width: `${100 - forPercent}%` }} />
         </div>
@@ -91,14 +91,14 @@ export default function ProposalCard({ proposal, onVote }: ProposalCardProps) {
         {status === 0 && onVote && (
           <button
             onClick={() => onVote(proposal.proposalId)}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            className="rounded-lg bg-primary px-4 py-1.5 text-xs font-medium text-white hover:bg-primary"
           >
             Vote
           </button>
         )}
       </div>
 
-      <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+      <div className="mt-3 border-t border-gray-100 pt-3 dark:border-border">
         <p className="font-mono text-xs text-gray-400 dark:text-gray-500">
           Proposer: {proposal.proposer}
         </p>

@@ -13,9 +13,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600",
+  primary: "bg-primary text-white hover:bg-primary dark:bg-primary dark:hover:bg-primary",
   secondary: "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600",
-  outline: "border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700",
+  outline: "border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-border dark:text-gray-200 dark:hover:bg-gray-700",
   danger: "bg-red-600 text-white hover:bg-red-700",
   ghost: "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700",
 };
@@ -39,7 +39,7 @@ export default function Button({
     <button
       disabled={disabled || loading}
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
         disabled:cursor-not-allowed disabled:opacity-50
         ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}

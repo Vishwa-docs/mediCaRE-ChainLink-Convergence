@@ -1,0 +1,7 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+  "ipfsGatewayUrl": "https://gateway.pinata.cloud/ipfs",
+  "ipfsUploadUrl": "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+  "gasLimit": 600000
+}

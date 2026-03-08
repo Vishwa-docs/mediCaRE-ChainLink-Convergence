@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Heart,
   FileText,
@@ -14,7 +14,12 @@ import {
   Activity,
   User,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
+import { useContract } from "@/hooks/useContract";
+import { useWalletAddress } from "@/hooks/useContract";
+import { useAuth } from "@/contexts/AuthContext";
+import { ethers } from "ethers";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -43,89 +48,26 @@ interface WellnessReminder {
   completed: boolean;
 }
 
-// ─── Mock Data ──────────────────────────────────────────────────────
-
-const MOCK_MEDICATIONS: MedicationEntry[] = [
-  {
-    id: "med-1",
-    name: "Metformin",
-    dosage: "500mg",
-    schedule: "Twice daily",
-    nextDose: "2:00 PM",
-    taken: true,
-  },
-  {
-    id: "med-2",
-    name: "Lisinopril",
-    dosage: "10mg",
-    schedule: "Once daily",
-    nextDose: "8:00 AM",
-    taken: true,
-  },
-  {
-    id: "med-3",
-    name: "Atorvastatin",
-    dosage: "20mg",
-    schedule: "Once daily (evening)",
-    nextDose: "9:00 PM",
-    taken: false,
-  },
+// ─── Sample medication/wellness data (local/user-managed) ───────────
+const SAMPLE_MEDICATIONS: MedicationEntry[] = [
+  { id: "1", name: "Metformin", dosage: "500mg", schedule: "Twice daily", nextDose: "6:00 PM", taken: false },
+  { id: "2", name: "Lisinopril", dosage: "10mg", schedule: "Once daily", nextDose: "8:00 AM", taken: true },
+  { id: "3", name: "Atorvastatin", dosage: "20mg", schedule: "Bedtime", nextDose: "10:00 PM", taken: false },
 ];
 
-const MOCK_RECORDS: HealthRecord[] = [
-  {
-    id: "rec-1",
-    type: "LAB",
-    date: "2026-02-28",
-    provider: "Dr. Smith",
-    summary: "Blood panel — glucose within target, A1C improved to 6.8%.",
-  },
-  {
-    id: "rec-2",
-    type: "IMAGING",
-    date: "2026-02-15",
-    provider: "City Radiology",
-    summary: "Chest X-ray — no abnormalities detected.",
-  },
-  {
-    id: "rec-3",
-    type: "PRESCRIPTION",
-    date: "2026-02-10",
-    provider: "Dr. Smith",
-    summary: "Metformin renewed for 90 days, dosage unchanged.",
-  },
-];
-
-const MOCK_REMINDERS: WellnessReminder[] = [
-  {
-    id: "rem-1",
-    title: "Hydration Check",
-    description: "Drink at least 8 glasses of water today",
-    time: "Throughout the day",
-    completed: false,
-  },
-  {
-    id: "rem-2",
-    title: "30-Min Walk",
-    description: "Light exercise improves glucose metabolism",
-    time: "5:00 PM",
-    completed: false,
-  },
-  {
-    id: "rem-3",
-    title: "Blood Pressure",
-    description: "Take your evening BP reading",
-    time: "7:00 PM",
-    completed: false,
-  },
+const SAMPLE_REMINDERS: WellnessReminder[] = [
+  { id: "1", title: "Blood pressure check", description: "Record morning BP", time: "8:00 AM", completed: true },
+  { id: "2", title: "30-min walk", description: "Daily exercise goal", time: "12:00 PM", completed: false },
+  { id: "3", title: "Glucose reading", description: "Pre-dinner check", time: "5:30 PM", completed: false },
+  { id: "4", title: "Hydration goal", description: "8 glasses of water", time: "All day", completed: false },
 ];
 
 // ─── Components ─────────────────────────────────────────────────────
 
-function VerificationBanner({ verified }: { verified: boolean }) {
+function VerificationBanner({ verified, onVerify, loading }: { verified: boolean; onVerify: () => void; loading?: boolean }) {
   if (verified) {
     return (
-      <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+      <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
         <CheckCircle className="h-5 w-5 flex-shrink-0" />
         <span className="font-medium">World ID Verified</span>
         <span className="ml-auto text-xs text-emerald-500">Proof-of-personhood active</span>
@@ -134,9 +76,13 @@ function VerificationBanner({ verified }: { verified: boolean }) {
   }
 
   return (
-    <button className="flex w-full items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 active:bg-blue-100">
-      <Shield className="h-5 w-5 flex-shrink-0" />
-      <span className="font-medium">Verify with World ID</span>
+    <button
+      onClick={onVerify}
+      disabled={loading}
+      className="flex w-full items-center gap-2 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary active:bg-primary/15 disabled:opacity-50"
+    >
+      {loading ? <Loader2 className="h-5 w-5 animate-spin flex-shrink-0" /> : <Shield className="h-5 w-5 flex-shrink-0" />}
+      <span className="font-medium">{loading ? "Verifying…" : "Verify with World ID"}</span>
       <ChevronRight className="ml-auto h-4 w-4" />
     </button>
   );
@@ -150,7 +96,7 @@ function MedicationCard({
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-surface p-4 shadow-sm">
       <button
         onClick={() => onToggle(med.id)}
         className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
@@ -166,7 +112,7 @@ function MedicationCard({
         )}
       </button>
       <div className="min-w-0 flex-1">
-        <p className={`font-medium ${med.taken ? "text-gray-400 line-through" : "text-gray-900"}`}>
+        <p className={`font-medium ${med.taken ? "text-gray-400 line-through" : "text-gray-900 dark:text-white"}`}>
           {med.name} — {med.dosage}
         </p>
         <p className="text-xs text-gray-500">
@@ -179,13 +125,13 @@ function MedicationCard({
 
 function RecordCard({ record }: { record: HealthRecord }) {
   const typeColors: Record<string, string> = {
-    LAB: "bg-blue-100 text-blue-700",
+    LAB: "bg-primary/15 text-primary",
     IMAGING: "bg-purple-100 text-purple-700",
     PRESCRIPTION: "bg-amber-100 text-amber-700",
   };
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-surface p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -196,8 +142,8 @@ function RecordCard({ record }: { record: HealthRecord }) {
         </span>
         <span className="text-xs text-gray-400">{record.date}</span>
       </div>
-      <p className="text-sm text-gray-800">{record.summary}</p>
-      <p className="mt-1 text-xs text-gray-500">{record.provider}</p>
+      <p className="text-sm text-gray-800 dark:text-gray-200">{record.summary}</p>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{record.provider}</p>
     </div>
   );
 }
@@ -212,7 +158,7 @@ function ReminderItem({
   return (
     <button
       onClick={() => onToggle(reminder.id)}
-      className="flex w-full items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 text-left shadow-sm active:bg-gray-50"
+      className="flex w-full items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-surface p-3 text-left shadow-sm active:bg-gray-50 dark:active:bg-surface"
     >
       <div
         className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
@@ -228,7 +174,7 @@ function ReminderItem({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className={`text-sm font-medium ${reminder.completed ? "text-gray-400 line-through" : "text-gray-900"}`}>
+        <p className={`text-sm font-medium ${reminder.completed ? "text-gray-400 line-through" : "text-gray-900 dark:text-white"}`}>
           {reminder.title}
         </p>
         <p className="text-xs text-gray-500">{reminder.time}</p>
@@ -241,16 +187,65 @@ function ReminderItem({
 
 export default function MiniAppPage() {
   const [tab, setTab] = useState<"meds" | "records" | "wellness">("meds");
-  const [verified, setVerified] = useState(false);
-  const [medications, setMedications] = useState(MOCK_MEDICATIONS);
-  const [reminders, setReminders] = useState(MOCK_REMINDERS);
+  const { isWorldIDVerified, simulateWorldID, user } = useAuth();
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [medications, setMedications] = useState(SAMPLE_MEDICATIONS);
+  const [reminders, setReminders] = useState(SAMPLE_REMINDERS);
+  const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [policyCount, setPolicyCount] = useState(0);
 
-  // Simulate World ID verification after mount (in production this would
-  // come from the MiniKit SDK bridge)
+  const ehrContract = useContract("EHRStorage");
+  const insuranceContract = useContract("InsurancePolicy");
+  const address = useWalletAddress();
+
+  // Fetch real on-chain records
+  const fetchRecords = useCallback(async () => {
+    if (!address) { setLoadingRecords(false); return; }
+    setLoadingRecords(true);
+    try {
+      const recordIds = await ehrContract.read<bigint[]>("getPatientRecords", address);
+      const ids = recordIds ? Array.from(recordIds).map(Number) : [];
+      const recordPromises = ids.slice(0, 10).map((id) =>
+        ehrContract.read<any>("getRecord", id).catch(() => null)
+      );
+      const results = await Promise.all(recordPromises);
+      const items: HealthRecord[] = results
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        .map((r) => ({
+          id: String(Number(r.recordId ?? r[0])),
+          type: r.recordType ?? r[4] ?? "GENERAL",
+          date: new Date(Number(r.createdAt ?? r[5]) * 1000).toLocaleDateString(),
+          provider: `0x${(r.patient ?? r[1] ?? "").toString().slice(2, 10)}...`,
+          summary: `On-chain record #${Number(r.recordId ?? r[0])} — ${r.recordType ?? r[4] ?? "Medical Record"}`,
+        }));
+      setRecords(items);
+
+      // Also get policy count
+      const policies = await insuranceContract.read<bigint>("totalPolicies").catch(() => BigInt(0));
+      setPolicyCount(Number(policies));
+    } catch {
+      setRecords([]);
+    } finally {
+      setLoadingRecords(false);
+    }
+  }, [ehrContract, insuranceContract, address]);
+
   useEffect(() => {
-    const timer = setTimeout(() => setVerified(true), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchRecords();
+  }, [fetchRecords]);
+
+  // World ID verify via auth context (dev-mode simulated endpoint)
+  const handleVerifyWorldID = async () => {
+    setVerifyLoading(true);
+    try {
+      await simulateWorldID();
+    } catch {
+      // toast handled upstream
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
 
   const toggleMed = (id: string) => {
     setMedications((prev) =>
@@ -274,21 +269,21 @@ export default function MiniAppPage() {
   ];
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50 dark:bg-background">
       {/* ── Header ──────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 px-4 pb-3 pt-safe-top backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-border bg-white/90 dark:bg-surface/90 px-4 pb-3 pt-safe-top backdrop-blur-md">
         <div className="flex items-center gap-3 pt-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
             <Heart className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">
-              medi<span className="text-blue-600">CaRE</span>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+              medi<span className="text-primary">CaRE</span>
             </h1>
-            <p className="text-xs text-gray-500">Your health, on-chain</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Your health, on-chain</p>
           </div>
-          <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-gray-100">
-            <User className="h-4 w-4 text-gray-600" />
+          <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-surface">
+            <User className="h-4 w-4 text-gray-600 dark:text-gray-300" />
           </div>
         </div>
       </header>
@@ -296,27 +291,27 @@ export default function MiniAppPage() {
       {/* ── Body ────────────────────────────────── */}
       <main className="flex-1 space-y-4 px-4 py-4">
         {/* Verification banner */}
-        <VerificationBanner verified={verified} />
+        <VerificationBanner verified={isWorldIDVerified} onVerify={handleVerifyWorldID} loading={verifyLoading} />
 
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-            <p className="text-2xl font-bold text-blue-600">
+          <div className="rounded-xl bg-white dark:bg-surface p-3 text-center shadow-sm">
+            <p className="text-2xl font-bold text-primary">
               {medsTaken}/{medications.length}
             </p>
-            <p className="text-xs text-gray-500">Meds taken</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Meds taken</p>
           </div>
-          <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-            <p className="text-2xl font-bold text-purple-600">
-              {MOCK_RECORDS.length}
+          <div className="rounded-xl bg-white dark:bg-surface p-3 text-center shadow-sm">
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+              {records.length}
             </p>
-            <p className="text-xs text-gray-500">Records</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Records</p>
           </div>
-          <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-            <p className="text-2xl font-bold text-emerald-600">
-              {remindersCompleted}/{reminders.length}
+          <div className="rounded-xl bg-white dark:bg-surface p-3 text-center shadow-sm">
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {policyCount}
             </p>
-            <p className="text-xs text-gray-500">Tasks</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Policies</p>
           </div>
         </div>
 
@@ -337,7 +332,7 @@ export default function MiniAppPage() {
         {/* Tab content */}
         {tab === "meds" && (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-gray-700">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Today&apos;s Medications
             </h2>
             {medications.map((med) => (
@@ -348,10 +343,17 @@ export default function MiniAppPage() {
 
         {tab === "records" && (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-gray-700">
-              Recent Records
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              On-Chain Records
             </h2>
-            {MOCK_RECORDS.map((rec) => (
+            {loadingRecords ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="ml-2 text-sm text-gray-500">Loading from chain...</span>
+              </div>
+            ) : records.length === 0 ? (
+              <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">No records yet. Upload records from the Health Records page.</p>
+            ) : records.map((rec) => (
               <RecordCard key={rec.id} record={rec} />
             ))}
           </section>
@@ -359,7 +361,7 @@ export default function MiniAppPage() {
 
         {tab === "wellness" && (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-gray-700">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Wellness Reminders
             </h2>
             {reminders.map((rem) => (
@@ -374,7 +376,7 @@ export default function MiniAppPage() {
       </main>
 
       {/* ── Bottom Tab Bar ──────────────────────── */}
-      <nav className="sticky bottom-0 z-30 border-t border-gray-200 bg-white pb-safe-bottom">
+      <nav className="sticky bottom-0 z-30 border-t border-gray-200 dark:border-border bg-white dark:bg-surface pb-safe-bottom">
         <div className="flex justify-around py-2">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
@@ -382,7 +384,7 @@ export default function MiniAppPage() {
               onClick={() => setTab(key)}
               className={`flex flex-col items-center gap-0.5 px-4 py-1 text-xs transition-colors ${
                 tab === key
-                  ? "font-semibold text-blue-600"
+                  ? "font-semibold text-primary"
                   : "text-gray-400"
               }`}
             >

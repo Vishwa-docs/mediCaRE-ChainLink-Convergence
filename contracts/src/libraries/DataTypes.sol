@@ -64,7 +64,8 @@ library DataTypes {
         PARAMETER_CHANGE,   // Adjust a protocol parameter
         RISK_THRESHOLD,     // Update risk-scoring thresholds
         DATA_SHARING,       // Modify data-sharing / consent policies
-        PROTOCOL_UPGRADE    // Upgrade contract logic via proxy
+        PROTOCOL_UPGRADE,   // Upgrade contract logic via proxy
+        IRB_REVIEW          // Institutional Review Board review (requires multi-sig)
     }
 
     // ──────────────────────────────────────────────

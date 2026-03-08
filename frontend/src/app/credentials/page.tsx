@@ -1,60 +1,125 @@
 "use client";
 
-import { useState } from "react";
-import { BadgeCheck, Plus, Search, ShieldCheck, ShieldX, Calendar, User } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { BadgeCheck, Plus, Search, ShieldCheck, ShieldX, Calendar, User, Loader2 } from "lucide-react";
 import Badge from "@/components/shared/Badge";
 import Button from "@/components/shared/Button";
 import Modal from "@/components/shared/Modal";
 import StatCard from "@/components/shared/StatCard";
 import { CredentialTypeLabels } from "@/types";
 import type { Credential, CredentialType } from "@/types";
+import { useContract, useWalletAddress } from "@/hooks/useContract";
+import { ethers } from "ethers";
 import toast from "react-hot-toast";
 
-const MOCK_CREDENTIALS: Credential[] = [
-  { credentialId: 1, credentialHash: "0xabc…123", issuer: "0xMedBoard…1a2b", subject: "0xDrSmith…3c4d", credentialType: 0, issuanceDate: Date.now() / 1000 - 31536000, expiryDate: Date.now() / 1000 + 31536000, isValid: true },
-  { credentialId: 2, credentialHash: "0xdef…456", issuer: "0xABIM…5e6f", subject: "0xDrSmith…3c4d", credentialType: 1, issuanceDate: Date.now() / 1000 - 15768000, expiryDate: Date.now() / 1000 + 47304000, isValid: true },
-  { credentialId: 3, credentialHash: "0xghi…789", issuer: "0xDEA…7g8h", subject: "0xDrJones…9i0j", credentialType: 3, issuanceDate: Date.now() / 1000 - 7884000, expiryDate: Date.now() / 1000 + 23652000, isValid: true },
-  { credentialId: 4, credentialHash: "0xjkl…012", issuer: "0xNPI…1k2l", subject: "0xDrPatel…3m4n", credentialType: 4, issuanceDate: Date.now() / 1000 - 63072000, expiryDate: 0, isValid: true },
-  { credentialId: 5, credentialHash: "0xmno…345", issuer: "0xCME…5o6p", subject: "0xDrSmith…3c4d", credentialType: 5, issuanceDate: Date.now() / 1000 - 2592000, expiryDate: Date.now() / 1000 + 7884000, isValid: true },
-  { credentialId: 6, credentialHash: "0xpqr…678", issuer: "0xMedBoard…1a2b", subject: "0xDrLee…7q8r", credentialType: 0, issuanceDate: Date.now() / 1000 - 94608000, expiryDate: Date.now() / 1000 - 604800, isValid: false },
-];
-
 export default function CredentialsPage() {
+  const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showIssue, setShowIssue] = useState(false);
   const [showVerify, setShowVerify] = useState(false);
   const [verifyId, setVerifyId] = useState("");
   const [verifyResult, setVerifyResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [formData, setFormData] = useState({ subject: "", credentialType: "0", credentialHash: "", expiryDate: "" });
+  const [issuing, setIssuing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
-  const filtered = MOCK_CREDENTIALS.filter(
+  const credContract = useContract("CredentialRegistry");
+  const { address, connect } = useWalletAddress();
+
+  const fetchCredentials = useCallback(async () => {
+    setLoading(true);
+    try {
+      const count = await credContract.read<bigint>("totalCredentials");
+      const n = Number(count);
+      const credPromises = Array.from({ length: n }, (_, i) =>
+        credContract.read<any>("getCredential", i + 1).catch(() => null)
+      );
+      const credResults = await Promise.all(credPromises);
+      const items: Credential[] = credResults
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .map((c) => ({
+          credentialId: Number(c.credentialId ?? c[0]),
+          credentialHash: c.credentialHash ?? c[1],
+          issuer: c.issuer ?? c[2],
+          subject: c.subject ?? c[3],
+          credentialType: Number(c.credentialType ?? c[4]),
+          issuanceDate: Number(c.issuanceDate ?? c[5]),
+          expiryDate: Number(c.expiryDate ?? c[6]),
+          isValid: c.isValid ?? c[7],
+        }));
+      setCredentials(items);
+    } catch {
+      setCredentials([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [credContract]);
+
+  useEffect(() => {
+    connect().then(() => fetchCredentials());
+  }, [connect, fetchCredentials]);
+
+  const filtered = credentials.filter(
     (c) =>
       c.subject.toLowerCase().includes(search.toLowerCase()) ||
       c.issuer.toLowerCase().includes(search.toLowerCase()) ||
-      CredentialTypeLabels[c.credentialType as CredentialType].toLowerCase().includes(search.toLowerCase())
+      CredentialTypeLabels[c.credentialType as CredentialType]?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const activeCount = credentials.filter((c) => c.isValid).length;
+  const invalidCount = credentials.filter((c) => !c.isValid).length;
+  const uniqueIssuers = new Set(credentials.map((c) => c.issuer)).size;
 
   const handleIssue = async (e: React.FormEvent) => {
     e.preventDefault();
-    await new Promise((r) => setTimeout(r, 1500));
-    toast.success("Credential issued on-chain");
-    setShowIssue(false);
+    setIssuing(true);
+    try {
+      const expiryTimestamp = formData.expiryDate
+        ? Math.floor(new Date(formData.expiryDate).getTime() / 1000)
+        : 0;
+      const credHash = ethers.encodeBytes32String(formData.credentialHash.slice(0, 31));
+      const issuanceTimestamp = Math.floor(Date.now() / 1000);
+      await credContract.write(
+        "issueCredential",
+        credHash,
+        formData.subject,
+        parseInt(formData.credentialType),
+        issuanceTimestamp,
+        expiryTimestamp,
+      );
+      toast.success("Credential issued on-chain!");
+      setShowIssue(false);
+      setFormData({ subject: "", credentialType: "0", credentialHash: "", expiryDate: "" });
+      fetchCredentials();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to issue credential");
+    } finally {
+      setIssuing(false);
+    }
   };
 
   const handleVerify = async () => {
     if (!verifyId) return;
-    await new Promise((r) => setTimeout(r, 1000));
-    const id = parseInt(verifyId);
-    const cred = MOCK_CREDENTIALS.find((c) => c.credentialId === id);
-    if (cred) {
-      setVerifyResult({
-        valid: cred.isValid,
-        message: cred.isValid
-          ? `Credential #${id} is valid. Issued by ${cred.issuer} on ${new Date(cred.issuanceDate * 1000).toLocaleDateString()}.`
-          : `Credential #${id} has been revoked or expired.`,
-      });
-    } else {
-      setVerifyResult({ valid: false, message: `Credential #${id} not found.` });
+    setVerifying(true);
+    try {
+      const id = parseInt(verifyId);
+      const valid = await credContract.read<boolean>("verifyCredential", id);
+      if (valid) {
+        const cred = await credContract.read<any>("getCredential", id);
+        const issuer = cred.issuer ?? cred[2];
+        const issuanceDate = Number(cred.issuanceDate ?? cred[5]);
+        setVerifyResult({
+          valid: true,
+          message: `Credential #${id} is valid. Issued by ${issuer} on ${new Date(issuanceDate * 1000).toLocaleDateString()}.`,
+        });
+      } else {
+        setVerifyResult({ valid: false, message: `Credential #${id} has been revoked or expired.` });
+      }
+    } catch {
+      setVerifyResult({ valid: false, message: `Credential #${verifyId} not found on-chain.` });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -80,10 +145,10 @@ export default function CredentialsPage() {
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Credentials" value="56" icon={<BadgeCheck className="h-6 w-6" />} trend={{ value: 5.7, positive: true }} />
-        <StatCard title="Active" value="49" icon={<ShieldCheck className="h-6 w-6" />} />
-        <StatCard title="Revoked/Expired" value="7" icon={<ShieldX className="h-6 w-6" />} />
-        <StatCard title="Issuers" value="12" icon={<User className="h-6 w-6" />} />
+        <StatCard title="Total Credentials" value={credentials.length} icon={<BadgeCheck className="h-6 w-6" />} />
+        <StatCard title="Active" value={activeCount} icon={<ShieldCheck className="h-6 w-6" />} />
+        <StatCard title="Revoked/Expired" value={invalidCount} icon={<ShieldX className="h-6 w-6" />} />
+        <StatCard title="Issuers" value={uniqueIssuers} icon={<User className="h-6 w-6" />} />
       </div>
 
       {/* Search */}
@@ -94,17 +159,28 @@ export default function CredentialsPage() {
           placeholder="Search by provider, issuer, or type…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
         />
       </div>
 
       {/* Credentials grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-gray-500">Loading credentials from chain...</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white py-16 text-center dark:border-border dark:bg-surface">
+          <BadgeCheck className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
+          <p className="mt-4 text-gray-500 dark:text-gray-400">No credentials found</p>
+        </div>
+      ) : (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map((cred) => (
           <div
             key={cred.credentialId}
-            className={`rounded-xl border bg-white p-6 shadow-sm dark:bg-gray-800 ${
-              cred.isValid ? "border-gray-200 dark:border-gray-700" : "border-red-200 dark:border-red-800"
+            className={`rounded-xl border bg-white p-6 shadow-sm dark:bg-surface ${
+              cred.isValid ? "border-gray-200 dark:border-border" : "border-red-200 dark:border-red-800"
             }`}
           >
             <div className="mb-3 flex items-start justify-between">
@@ -158,6 +234,7 @@ export default function CredentialsPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Issue credential modal */}
       <Modal open={showIssue} onClose={() => setShowIssue(false)} title="Issue New Credential">
@@ -170,7 +247,7 @@ export default function CredentialsPage() {
               value={formData.subject}
               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               required
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
           <div>
@@ -178,7 +255,7 @@ export default function CredentialsPage() {
             <select
               value={formData.credentialType}
               onChange={(e) => setFormData({ ...formData, credentialType: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-primary focus:outline-none dark:border-border dark:bg-surface dark:text-white"
             >
               {Object.entries(CredentialTypeLabels).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -193,7 +270,7 @@ export default function CredentialsPage() {
               value={formData.credentialHash}
               onChange={(e) => setFormData({ ...formData, credentialHash: e.target.value })}
               required
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
           <div>
@@ -202,12 +279,14 @@ export default function CredentialsPage() {
               type="date"
               value={formData.expiryDate}
               onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-primary focus:outline-none dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1" type="button" onClick={() => setShowIssue(false)}>Cancel</Button>
-            <Button className="flex-1" type="submit">Issue On-Chain</Button>
+            <Button className="flex-1" type="submit" disabled={issuing}>
+              {issuing ? <><Loader2 className="h-4 w-4 animate-spin" /> Issuing...</> : "Issue On-Chain"}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -222,10 +301,12 @@ export default function CredentialsPage() {
               placeholder="Enter credential ID"
               value={verifyId}
               onChange={(e) => { setVerifyId(e.target.value); setVerifyResult(null); }}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border dark:bg-surface dark:text-white"
             />
           </div>
-          <Button className="w-full" onClick={handleVerify}>Verify</Button>
+          <Button className="w-full" onClick={handleVerify} disabled={verifying}>
+            {verifying ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : "Verify"}
+          </Button>
 
           {verifyResult && (
             <div className={`rounded-lg border p-4 ${verifyResult.valid ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20" : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20"}`}>

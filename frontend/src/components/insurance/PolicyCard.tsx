@@ -17,13 +17,13 @@ export default function PolicyCard({ policy, onClick }: PolicyCardProps) {
   return (
     <div
       onClick={onClick}
-      className={`cursor-pointer rounded-xl border bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:bg-gray-800
-        ${expired ? "border-red-200 dark:border-red-800" : "border-gray-200 dark:border-gray-700"}`}
+      className={`cursor-pointer rounded-xl border bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:bg-surface
+        ${expired ? "border-red-200 dark:border-red-800" : "border-gray-200 dark:border-border"}`}
     >
       <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30">
-            <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 dark:bg-primary/20">
+            <Shield className="h-5 w-5 text-primary dark:text-primary-light" />
           </div>
           <div>
             <p className="font-semibold text-gray-900 dark:text-white">Policy #{policy.policyId}</p>
@@ -76,7 +76,7 @@ export default function PolicyCard({ policy, onClick }: PolicyCardProps) {
 
       {/* Risk bar */}
       <div className="mt-4">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-surface">
           <div
             className={`h-full rounded-full transition-all ${
               policy.riskScore > 7000

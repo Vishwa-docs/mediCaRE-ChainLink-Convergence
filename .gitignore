@@ -49,3 +49,12 @@ artifacts/
 secrets.yaml
 *.pem
 *.key
+
+# Private / internal docs
+VK/
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal

@@ -55,7 +55,6 @@ export async function summariseEHR(
   const systemMessage = SYSTEM_PROMPT + translationInstruction(language);
 
   const body = {
-    model: config.llm.model,
     messages: [
       { role: "system", content: systemMessage },
       {
@@ -74,10 +73,10 @@ export async function summariseEHR(
     try {
       log.debug(`LLM request attempt ${attempt}/${MAX_RETRIES}`);
 
-      const response = await axios.post(config.llm.apiUrl, body, {
+      const response = await axios.post(config.azureOpenAI.chatUrl, body, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${config.llm.apiKey}`,
+          "api-key": config.azureOpenAI.apiKey,
         },
         timeout: 60_000,
       });

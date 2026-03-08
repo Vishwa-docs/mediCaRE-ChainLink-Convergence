@@ -37,7 +37,7 @@ export default function VotePanel({ proposalId, description, onVote, onClose }: 
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+      <div className="rounded-lg bg-gray-50 p-4 dark:bg-surface/50">
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Proposal #{proposalId}</p>
         <p className="mt-1 text-sm text-gray-900 dark:text-white">{description}</p>
       </div>
@@ -49,7 +49,7 @@ export default function VotePanel({ proposalId, description, onVote, onClose }: 
             ${
               support === true
                 ? "border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20"
-                : "border-gray-200 hover:border-emerald-300 dark:border-gray-600 dark:hover:border-emerald-600"
+                : "border-gray-200 hover:border-emerald-300 dark:border-border dark:hover:border-emerald-600"
             }`}
         >
           <ThumbsUp
@@ -76,7 +76,7 @@ export default function VotePanel({ proposalId, description, onVote, onClose }: 
             ${
               support === false
                 ? "border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-900/20"
-                : "border-gray-200 hover:border-red-300 dark:border-gray-600 dark:hover:border-red-600"
+                : "border-gray-200 hover:border-red-300 dark:border-border dark:hover:border-red-600"
             }`}
         >
           <ThumbsDown

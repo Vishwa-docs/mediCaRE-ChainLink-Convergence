@@ -57,11 +57,16 @@ const config = {
     gateway: optional("PINATA_GATEWAY", "https://gateway.pinata.cloud/ipfs"),
   },
 
-  /** LLM (OpenAI-compatible) */
-  llm: {
-    apiUrl: optional("LLM_API_URL", "https://api.openai.com/v1/chat/completions"),
-    apiKey: required("LLM_API_KEY"),
-    model: optional("LLM_MODEL", "gpt-4o-mini"),
+  /** Azure OpenAI */
+  azureOpenAI: {
+    endpoint: required("AZURE_OPENAI_ENDPOINT"),
+    apiKey: required("AZURE_OPENAI_API_KEY"),
+    deployment: optional("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+    apiVersion: optional("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+    /** Fully constructed chat completions URL */
+    get chatUrl(): string {
+      return `${this.endpoint}/openai/deployments/${this.deployment}/chat/completions?api-version=${this.apiVersion}`;
+    },
   },
 
   /** FHIR */

@@ -30,6 +30,9 @@ contract CredentialRegistry is AccessControl, AccessManager {
     /// @notice Role for authorised credential issuers (e.g. medical boards).
     bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
 
+    /// @notice Role for authorised research institutions.
+    bytes32 public constant RESEARCHER_ROLE = keccak256("RESEARCHER_ROLE");
+
     // ──────────────────────────────────────────────
     //  Enums
     // ──────────────────────────────────────────────
@@ -76,6 +79,34 @@ contract CredentialRegistry is AccessControl, AccessManager {
         bool           isValid;
     }
 
+    /**
+     * @notice Patient consent for their data to be used in research.
+     * @param patient     Address of the consenting patient.
+     * @param consentHash Keccak-256 hash of the off-chain consent document.
+     * @param isActive    Whether the consent is currently active.
+     * @param grantedAt   Block timestamp when consent was granted.
+     */
+    struct ResearchConsent {
+        address patient;
+        bytes32 consentHash;
+        bool    isActive;
+        uint256 grantedAt;
+    }
+
+    /**
+     * @notice A patient-created offer to monetise anonymised health data.
+     * @param patient        Address of the patient offering data.
+     * @param dataType       Category identifier (e.g. keccak256("GENOMIC")).
+     * @param pricePerAccess Price in wei per access grant.
+     * @param isActive       Whether the offer is currently available.
+     */
+    struct DataMonetizationOffer {
+        address patient;
+        bytes32 dataType;
+        uint256 pricePerAccess;
+        bool    isActive;
+    }
+
     // ──────────────────────────────────────────────
     //  State
     // ──────────────────────────────────────────────
@@ -94,6 +125,21 @@ contract CredentialRegistry is AccessControl, AccessManager {
 
     /// @notice credentialHash ⇒ credentialId (reverse lookup / duplicate prevention).
     mapping(bytes32 => uint256) private _hashToId;
+
+    /// @notice patient ⇒ ResearchConsent.
+    mapping(address => ResearchConsent) private _researchConsents;
+
+    /// @notice Auto-incrementing offer counter.
+    uint256 private _nextOfferId;
+
+    /// @notice offerId ⇒ DataMonetizationOffer.
+    mapping(uint256 => DataMonetizationOffer) private _dataOffers;
+
+    /// @notice patient ⇒ array of offer IDs.
+    mapping(address => uint256[]) private _patientOfferIds;
+
+    /// @notice offerId ⇒ purchaser ⇒ has purchased?
+    mapping(uint256 => mapping(address => bool)) private _offerPurchases;
 
     // ──────────────────────────────────────────────
     //  Events
@@ -121,6 +167,35 @@ contract CredentialRegistry is AccessControl, AccessManager {
         uint256 newExpiryDate
     );
 
+    /// @notice Emitted when a patient grants research consent.
+    event ResearchConsentGranted(
+        address indexed patient,
+        bytes32 consentHash,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a patient revokes research consent.
+    event ResearchConsentRevoked(
+        address indexed patient,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a data monetization offer is created.
+    event DataOfferCreated(
+        uint256 indexed offerId,
+        address indexed patient,
+        bytes32 dataType,
+        uint256 pricePerAccess
+    );
+
+    /// @notice Emitted when data access is purchased.
+    event DataAccessPurchased(
+        uint256 indexed offerId,
+        address indexed purchaser,
+        address indexed patient,
+        uint256 price
+    );
+
     // ──────────────────────────────────────────────
     //  Errors
     // ──────────────────────────────────────────────
@@ -132,6 +207,21 @@ contract CredentialRegistry is AccessControl, AccessManager {
     error CredentialAlreadyExists(bytes32 credentialHash);
     error NotIssuerOrAdmin(address caller, uint256 credentialId);
     error InvalidDates();
+
+    /// @notice Thrown when a research consent is not active.
+    error ResearchConsentNotActive(address patient);
+
+    /// @notice Thrown when a data offer is not found or not active.
+    error DataOfferNotFound(uint256 offerId);
+
+    /// @notice Thrown when insufficient payment is sent for data access.
+    error InsufficientPayment(uint256 required, uint256 sent);
+
+    /// @notice Thrown when data access has already been purchased.
+    error AlreadyPurchased(uint256 offerId, address purchaser);
+
+    /// @notice Thrown when an invalid price is provided.
+    error InvalidPrice();
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -148,6 +238,7 @@ contract CredentialRegistry is AccessControl, AccessManager {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _setRoleAdmin(ISSUER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(RESEARCHER_ROLE, ADMIN_ROLE);
 
         _setWorldIdVerifier(worldIdVerifier);
     }
@@ -181,7 +272,7 @@ contract CredentialRegistry is AccessControl, AccessManager {
         if (expiryDate != 0 && expiryDate <= issuanceDate) revert InvalidDates();
         if (_hashToId[credentialHash] != 0) revert CredentialAlreadyExists(credentialHash);
 
-        credentialId = _nextCredentialId++;
+        unchecked { credentialId = _nextCredentialId++; }
 
         // Reserving ID 0 for the null mapping sentinel.
         // Since _nextCredentialId starts at 0, the first real credential gets ID 0.
@@ -279,6 +370,156 @@ contract CredentialRegistry is AccessControl, AccessManager {
      */
     function removeIssuer(address issuer) external onlyRole(ADMIN_ROLE) {
         _revokeRole(ISSUER_ROLE, issuer);
+    }
+
+    // ──────────────────────────────────────────────
+    //  Research Consent
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Grant consent for anonymised data to be used in research.
+     * @dev Called directly by the patient. Overwrites any prior consent entry.
+     * @param consentHash Keccak-256 hash of the off-chain consent document.
+     */
+    function addResearchConsent(bytes32 consentHash) external {
+        if (consentHash == bytes32(0)) revert InvalidCredentialHash();
+
+        _researchConsents[msg.sender] = ResearchConsent({
+            patient: msg.sender,
+            consentHash: consentHash,
+            isActive: true,
+            grantedAt: block.timestamp
+        });
+
+        emit ResearchConsentGranted(msg.sender, consentHash, block.timestamp);
+    }
+
+    /**
+     * @notice Revoke previously granted research consent.
+     */
+    function revokeResearchConsent() external {
+        ResearchConsent storage rc = _researchConsents[msg.sender];
+        if (!rc.isActive) revert ResearchConsentNotActive(msg.sender);
+
+        rc.isActive = false;
+        emit ResearchConsentRevoked(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Retrieve a patient's current research consent.
+     * @param patient The patient address.
+     * @return consent The ResearchConsent struct.
+     */
+    function getResearchConsent(address patient)
+        external
+        view
+        returns (ResearchConsent memory consent)
+    {
+        consent = _researchConsents[patient];
+    }
+
+    // ──────────────────────────────────────────────
+    //  Data Monetization
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Create an offer to sell access to anonymised health data.
+     * @dev Called by the patient. Multiple offers per patient are supported.
+     * @param dataType       Category identifier for the data being offered.
+     * @param pricePerAccess Price in wei that a purchaser must pay per access.
+     * @return offerId       The identifier of the newly created offer.
+     */
+    function createDataOffer(
+        bytes32 dataType,
+        uint256 pricePerAccess
+    ) external returns (uint256 offerId) {
+        if (dataType == bytes32(0)) revert InvalidCredentialHash();
+        if (pricePerAccess == 0) revert InvalidPrice();
+
+        unchecked { offerId = _nextOfferId++; }
+
+        _dataOffers[offerId] = DataMonetizationOffer({
+            patient: msg.sender,
+            dataType: dataType,
+            pricePerAccess: pricePerAccess,
+            isActive: true
+        });
+        _patientOfferIds[msg.sender].push(offerId);
+
+        emit DataOfferCreated(offerId, msg.sender, dataType, pricePerAccess);
+    }
+
+    /**
+     * @notice Purchase access to a patient's anonymised data offer.
+     * @dev Caller must send at least `pricePerAccess` in native currency.
+     *      Funds are forwarded directly to the patient.
+     * @param offerId The data offer to purchase.
+     */
+    function purchaseDataAccess(uint256 offerId) external payable {
+        DataMonetizationOffer storage offer = _dataOffers[offerId];
+        if (offer.patient == address(0) || !offer.isActive) revert DataOfferNotFound(offerId);
+        if (msg.value < offer.pricePerAccess) revert InsufficientPayment(offer.pricePerAccess, msg.value);
+        if (_offerPurchases[offerId][msg.sender]) revert AlreadyPurchased(offerId, msg.sender);
+
+        _offerPurchases[offerId][msg.sender] = true;
+
+        // Forward payment to the patient.
+        (bool sent, ) = payable(offer.patient).call{value: msg.value}("");
+        require(sent, "Payment transfer failed");
+
+        emit DataAccessPurchased(offerId, msg.sender, offer.patient, msg.value);
+    }
+
+    /**
+     * @notice Deactivate a data monetization offer.
+     * @param offerId The offer to deactivate.
+     */
+    function deactivateDataOffer(uint256 offerId) external {
+        DataMonetizationOffer storage offer = _dataOffers[offerId];
+        if (offer.patient == address(0)) revert DataOfferNotFound(offerId);
+        require(msg.sender == offer.patient || hasRole(ADMIN_ROLE, msg.sender), "Not authorized");
+
+        offer.isActive = false;
+    }
+
+    /**
+     * @notice Retrieve a data monetization offer.
+     * @param offerId The offer ID.
+     * @return offer The DataMonetizationOffer struct.
+     */
+    function getDataOffer(uint256 offerId)
+        external
+        view
+        returns (DataMonetizationOffer memory offer)
+    {
+        offer = _dataOffers[offerId];
+    }
+
+    /**
+     * @notice Retrieve all offer IDs for a patient.
+     * @param patient The patient address.
+     * @return offerIds Array of offer identifiers.
+     */
+    function getPatientOffers(address patient)
+        external
+        view
+        returns (uint256[] memory offerIds)
+    {
+        offerIds = _patientOfferIds[patient];
+    }
+
+    /**
+     * @notice Check if an address has purchased access to an offer.
+     * @param offerId   The offer ID.
+     * @param purchaser The purchaser address.
+     * @return purchased Whether access was purchased.
+     */
+    function hasAccessToOffer(uint256 offerId, address purchaser)
+        external
+        view
+        returns (bool purchased)
+    {
+        purchased = _offerPurchases[offerId][purchaser];
     }
 
     // ──────────────────────────────────────────────

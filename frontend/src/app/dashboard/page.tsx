@@ -1,10 +1,12 @@
 "use client";
 
-import { FileText, Shield, Truck, Plus, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Shield, Truck, Plus, ArrowRight, Loader2, Inbox, Database, Brain, Globe, Zap, Activity } from "lucide-react";
 import Link from "next/link";
 import MetricsOverview from "@/components/dashboard/MetricsOverview";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import Button from "@/components/shared/Button";
+import { useContract } from "@/hooks/useContract";
 import {
   AreaChart,
   Area,
@@ -17,29 +19,44 @@ import {
   Bar,
 } from "recharts";
 
-const MONTHLY_DATA = [
-  { month: "Sep", records: 820, claims: 31, batches: 12 },
-  { month: "Oct", records: 910, claims: 28, batches: 15 },
-  { month: "Nov", records: 1045, claims: 35, batches: 11 },
-  { month: "Dec", records: 980, claims: 42, batches: 18 },
-  { month: "Jan", records: 1120, claims: 38, batches: 22 },
-  { month: "Feb", records: 1247, claims: 45, batches: 19 },
-];
-
-const CLAIM_DATA = [
-  { status: "Pending", count: 14 },
-  { status: "Approved", count: 23 },
-  { status: "Paid", count: 89 },
-  { status: "Rejected", count: 7 },
-];
-
 const QUICK_ACTIONS = [
-  { label: "Upload Record", icon: FileText, href: "/records", color: "bg-blue-600 hover:bg-blue-700" },
+  { label: "Upload Record", icon: FileText, href: "/records", color: "bg-primary hover:bg-primary" },
   { label: "File Claim", icon: Shield, href: "/insurance", color: "bg-emerald-600 hover:bg-emerald-700" },
   { label: "Track Batch", icon: Truck, href: "/supply-chain", color: "bg-amber-600 hover:bg-amber-700" },
 ];
 
 export default function DashboardPage() {
+  const [claimData, setClaimData] = useState<{ status: string; count: number }[]>([]);
+  const [loadingClaims, setLoadingClaims] = useState(true);
+  const insuranceContract = useContract("InsurancePolicy");
+
+  useEffect(() => {
+    async function fetchClaimData() {
+      setLoadingClaims(true);
+      try {
+        const total = await insuranceContract.read<bigint>("totalClaims");
+        const n = Number(total);
+        const statusCounts: Record<string, number> = { Pending: 0, Approved: 0, Paid: 0, Rejected: 0 };
+        const statusNames = ["Pending", "Approved", "Rejected", "Paid"];
+        const claimPromises = Array.from({ length: n }, (_, i) =>
+          insuranceContract.read<any>("getClaim", i + 1).catch(() => null)
+        );
+        const claims = await Promise.all(claimPromises);
+        for (const claim of claims) {
+          if (!claim) continue;
+          const status = Number(claim.status ?? claim[5]);
+          const name = statusNames[status] || "Pending";
+          statusCounts[name] = (statusCounts[name] || 0) + 1;
+        }
+        setClaimData(Object.entries(statusCounts).map(([status, count]) => ({ status, count })));
+      } catch {
+        setClaimData([]);
+      } finally {
+        setLoadingClaims(false);
+      }
+    }
+    fetchClaimData();
+  }, [insuranceContract]);
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -67,59 +84,42 @@ export default function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Records trend */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+        {/* Records trend — requires event indexer, show placeholder */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-border dark:bg-surface">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white">Records Over Time</h3>
-            <Link href="/records" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">
+            <Link href="/records" className="flex items-center gap-1 text-xs text-primary hover:text-primary dark:text-primary-light">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={MONTHLY_DATA}>
-                <defs>
-                  <linearGradient id="colorRecords" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "8px",
-                    color: "#f9fafb",
-                    fontSize: "12px",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="records"
-                  stroke="#2563eb"
-                  fillOpacity={1}
-                  fill="url(#colorRecords)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="flex h-64 flex-col items-center justify-center text-center">
+            <Inbox className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Time-series data requires an event indexer</p>
+            <p className="mt-1 text-xs text-gray-400">Use the Records page to view current on-chain records</p>
           </div>
         </div>
 
-        {/* Claims by status */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+        {/* Claims by status — fetched from contract */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-border dark:bg-surface">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white">Claims by Status</h3>
-            <Link href="/insurance" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">
+            <Link href="/insurance" className="flex items-center gap-1 text-xs text-primary hover:text-primary dark:text-primary-light">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           <div className="h-64">
+            {loadingClaims ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : claimData.length === 0 || claimData.every((d) => d.count === 0) ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <Inbox className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No claims data available</p>
+              </div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={CLAIM_DATA}>
+              <BarChart data={claimData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="status" tick={{ fontSize: 12 }} stroke="#9ca3af" />
                 <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
@@ -135,12 +135,39 @@ export default function DashboardPage() {
                 <Bar dataKey="count" fill="#10b981" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
 
       {/* Activity Feed */}
       <ActivityFeed />
+
+      {/* Integration Status */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-border dark:bg-surface">
+        <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Platform Integration Status</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "Chainlink Functions", desc: "AI summarization & risk scoring", icon: Brain, status: "active", color: "text-primary" },
+            { label: "IPFS via Pinata", desc: "Encrypted EHR storage", icon: Database, status: "active", color: "text-accent" },
+            { label: "Chainlink Automation", desc: "Policy expiry & IoT monitoring", icon: Zap, status: "active", color: "text-emerald-500" },
+            { label: "Chainlink CCIP", desc: "Cross-chain messaging", icon: Globe, status: "ready", color: "text-purple-500" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-border dark:bg-surface/50">
+              <div className={`mt-0.5 ${item.color}`}>
+                <item.icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
+                  <span className={`h-2 w-2 rounded-full ${item.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

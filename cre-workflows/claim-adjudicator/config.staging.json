@@ -1,0 +1,10 @@
+{
+  "chainName": "ethereum-testnet-sepolia",
+  "insurancePolicyAddress": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
+  "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+  "riskScoringUrl": "https://api.medicare-ai.example.com/v1/risk-score",
+  "adjudicatorUrl": "https://api.medicare-ai.example.com/v1/adjudicate",
+  "gasLimit": 800000,
+  "consensusThreshold": 2,
+  "totalAgents": 3
+}
