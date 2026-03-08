@@ -35,6 +35,11 @@ app.use(
   }),
 );
 
+// ─── Health Check (root-level for Railway / load balancers) ─────────────────
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "mediCaRE-backend", timestamp: new Date().toISOString() });
+});
+
 // ─── Rate Limiting ──────────────────────────────────────────────────────────
 app.use("/api", apiLimiter);
 

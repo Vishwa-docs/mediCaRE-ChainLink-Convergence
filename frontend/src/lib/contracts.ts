@@ -1,13 +1,13 @@
 // ──────────────────────────────────────────────
-//  Contract addresses – replace with actual deployments
+//  Contract addresses — Tenderly VNet (chain ID 99911155111)
 // ──────────────────────────────────────────────
 
 export const CONTRACTS = {
-  EHRStorage: process.env.NEXT_PUBLIC_EHR_ADDRESS || "0x0000000000000000000000000000000000000001",
-  InsurancePolicy: process.env.NEXT_PUBLIC_INSURANCE_ADDRESS || "0x0000000000000000000000000000000000000002",
-  SupplyChain: process.env.NEXT_PUBLIC_SUPPLY_ADDRESS || "0x0000000000000000000000000000000000000003",
-  CredentialRegistry: process.env.NEXT_PUBLIC_CREDENTIAL_ADDRESS || "0x0000000000000000000000000000000000000004",
-  Governance: process.env.NEXT_PUBLIC_GOVERNANCE_ADDRESS || "0x0000000000000000000000000000000000000005",
+  EHRStorage: process.env.NEXT_PUBLIC_EHR_ADDRESS || "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
+  InsurancePolicy: process.env.NEXT_PUBLIC_INSURANCE_ADDRESS || "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
+  SupplyChain: process.env.NEXT_PUBLIC_SUPPLY_ADDRESS || "0xC69B9c117bA7207ae7c28796718e950fD2eE3507",
+  CredentialRegistry: process.env.NEXT_PUBLIC_CREDENTIAL_ADDRESS || "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
+  Governance: process.env.NEXT_PUBLIC_GOVERNANCE_ADDRESS || "0xB5095Ecbf55E739395e346A6ebEA1701D47d5556",
 } as const;
 
 // ──────────────────────────────────────────────

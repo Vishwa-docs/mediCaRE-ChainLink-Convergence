@@ -2,7 +2,7 @@
   "chainName": "ethereum-testnet-sepolia",
   "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
   "ipfsGatewayUrl": "https://gateway.pinata.cloud/ipfs",
-  "aiSummarizerUrl": "https://api.medicare-ai.example.com/v1/summarize",
-  "authorizedEVMAddress": "",
+  "aiSummarizerUrl": "https://medicare-backend-production-861b.up.railway.app/api/ai/summarize",
+  "authorizedEVMAddress": "0x7637B8d8F46990441420343A7660436eD69c3716",
   "gasLimit": 500000
 }

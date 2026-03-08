@@ -2,7 +2,7 @@
   "chainName": "ethereum-testnet-sepolia",
   "insurancePolicyAddress": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
   "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
-  "riskModelUrl": "https://api.medicare-ai.example.com/v1/risk-model",
+  "riskModelUrl": "https://medicare-backend-production-861b.up.railway.app/api/ai/risk-model",
   "gasLimit": 600000,
   "cronSchedule": "0 0 1 * *",
   "maxAdjustmentBps": 500,

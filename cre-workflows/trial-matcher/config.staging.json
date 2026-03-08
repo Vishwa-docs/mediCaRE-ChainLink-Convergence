@@ -1,7 +1,7 @@
 {
   "chainName": "ethereum-testnet-sepolia",
-  "governanceAddress": "0x0000000000000000000000000000000000000000",
+  "governanceAddress": "0xB5095Ecbf55E739395e346A6ebEA1701D47d5556",
   "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
-  "trialMatchUrl": "https://api.medicare-ai.example.com/v1/trial-match",
+  "trialMatchUrl": "https://medicare-backend-production-861b.up.railway.app/api/research/trial-match",
   "gasLimit": 500000
 }

@@ -1,8 +1,8 @@
 # mediCaRE — API Documentation
 
 > **Version:** 1.0.0  
-> **Base URL:** `http://localhost:3001/api`  
-> **Last Updated:** 2026-02-25
+> **Base URL:** `https://medicare-backend-production-861b.up.railway.app/api`  
+> **Last Updated:** 2026-03-09
 
 ---
 
@@ -1081,11 +1081,36 @@ Run anomaly detection on a time-series of vital signs using Z-score analysis.
 
 ### World ID Module
 
-#### `POST /api/worldid/verify`
+#### `GET /api/auth/worldid/sign-request`
+
+Get a signed RP context for the IDKit v4 widget. Returns the `rp_context` object containing a server-signed nonce required to open the World ID verification widget.
+
+**Authentication:** Required (JWT)
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "app_id": "app_cf4f67cc7a208b56b418fdc252b16aa5",
+    "action": "medicare-identity",
+    "rp_context": {
+      "rp_id": "rp_b7d23880474f70ae",
+      "nonce": "0x00e1e889...",
+      "created_at": 1773003569,
+      "expires_at": 1773003869,
+      "signature": "0xa5d249..."
+    }
+  }
+}
+```
+
+#### `POST /api/auth/worldid/verify`
 
 Verify a World ID zero-knowledge proof to establish proof-of-personhood.
 
-**Authentication:** None
+**Authentication:** Required (JWT)
 
 **Request Body:**
 
@@ -1158,6 +1183,8 @@ The backend requires the following environment variables (see `.env.example`):
 | `FHIR_BASE_URL` | No | `https://hapi.fhir.org/baseR4` | FHIR R4 server URL |
 | `WORLDID_APP_ID` | Yes | — | World ID application ID |
 | `WORLDID_ACTION` | No | `verify-human` | World ID action identifier |
+| `WORLDID_RP_ID` | Yes | — | World ID Relying Party ID (from developer portal) |
+| `WORLDID_SIGNING_KEY` | Yes | — | ECDSA private key for signing RP context |
 | `ENCRYPTION_KEY` | Yes | — | AES-256 encryption key (hex) |
 | `CORS_ORIGIN` | No | `*` | Allowed CORS origins |
 | `RATE_LIMIT_WINDOW_MS` | No | `900000` | Rate limit window (ms) |

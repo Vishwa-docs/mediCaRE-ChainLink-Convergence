@@ -4,6 +4,6 @@
   "insurancePolicyAddress": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
   "ccipRouterAddress": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
   "stablecoinAddress": "0x7Cf6cb620c2617887DC0Df5Faf8b14A984404f98",
-  "settlementConsumerAddress": "0x0000000000000000000000000000000000000006",
+  "settlementConsumerAddress": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
   "gasLimit": 600000
 }

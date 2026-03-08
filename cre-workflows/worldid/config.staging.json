@@ -4,6 +4,6 @@
   "worldIdVerifierUrl": "https://developer.worldcoin.org/api/v2/verify",
   "worldIdAppId": "app_cf4f67cc7a208b56b418fdc252b16aa5",
   "worldIdAction": "medicare-identity",
-  "authorizedEVMAddress": "",
+  "authorizedEVMAddress": "0x7637B8d8F46990441420343A7660436eD69c3716",
   "gasLimit": 350000
 }

@@ -141,7 +141,7 @@ export default function LandingPage() {
                 Launch App <ChevronRight className="h-4 w-4" />
               </Link>
               <a
-                href="https://github.com"
+                href="https://github.com/Vishwa-docs/mediCaRE-ChainLink-Convergence"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-xl border border-gray-300 px-8 py-3.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-border dark:text-gray-300 dark:hover:bg-gray-800"
@@ -154,8 +154,8 @@ export default function LandingPage() {
           {/* Stats bar */}
           <div className="mx-auto mt-20 grid max-w-4xl grid-cols-2 gap-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-border dark:bg-gray-900 md:grid-cols-3">
             {[
-              { label: "Smart Contracts", value: "5" },
-              { label: "Chainlink Technology Integrations", value: "6" },
+              { label: "Smart Contracts", value: "6" },
+              { label: "CRE Workflows", value: "17" },
               { label: "Open Source", value: "100%" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">

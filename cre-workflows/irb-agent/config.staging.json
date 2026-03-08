@@ -1,7 +1,7 @@
 {
   "chainName": "ethereum-testnet-sepolia",
-  "governanceAddress": "0x0000000000000000000000000000000000000000",
-  "irbGuidelinesUrl": "https://api.medicare-ai.example.com/v1/irb",
+  "governanceAddress": "0xB5095Ecbf55E739395e346A6ebEA1701D47d5556",
+  "irbGuidelinesUrl": "https://medicare-backend-production-861b.up.railway.app/api/governance/irb",
   "gasLimit": 500000,
   "minComplianceScore": 7000
 }

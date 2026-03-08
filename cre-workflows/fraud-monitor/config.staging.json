@@ -1,11 +1,11 @@
 {
   "chainName": "ethereum-testnet-sepolia",
   "insurancePolicyAddress": "0x960C6b7bA344ed26EFe7CeB9D878E11a465977d1",
-  "fraudDetectionUrl": "https://api.medicare-ai.example.com/v1/fraud",
-  "treasuryAddress": "0x0000000000000000000000000000000000000000",
+  "fraudDetectionUrl": "https://medicare-backend-production-861b.up.railway.app/api/insurance/fraud-check",
+  "treasuryAddress": "0x7637B8d8F46990441420343A7660436eD69c3716",
   "gasLimit": 500000,
   "cronSchedule": "0 */6 * * *",
   "fraudThreshold": 7500,
   "reserveMinimum": 1000000,
-  "stablecoinAddress": "0x0000000000000000000000000000000000000000"
+  "stablecoinAddress": "0x7Cf6cb620c2617887DC0Df5Faf8b14A984404f98"
 }

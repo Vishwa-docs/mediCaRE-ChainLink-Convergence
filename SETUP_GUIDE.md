@@ -307,7 +307,7 @@ npx hardhat test
 ### Step 4: Deploy
 
 ```bash
-npx hardhat run scripts/deploy.ts --network virtualSepolia
+npx hardhat run scripts/deploy.ts --network tenderlyVNet
 ```
 
 ### Step 5: Verify on Tenderly (Automatic)

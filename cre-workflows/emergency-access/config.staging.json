@@ -1,9 +1,9 @@
 {
   "chainName": "ethereum-testnet-sepolia",
   "ehrStorageAddress": "0xd3269fe5e7C03B505bB73d5B3ec5655B72DeFE00",
-  "healthPassportAddress": "0x0000000000000000000000000000000000000000",
+  "credentialRegistryAddress": "0x57Df5458eDC1Cc1eD6F08D7eC3e3f9b170448a9A",
   "ipfsGatewayUrl": "https://gateway.pinata.cloud/ipfs",
   "gasLimit": 500000,
   "accessWindowSeconds": 900,
-  "notificationWebhookUrl": "https://api.medicare-backend.example.com/v1/notify"
+  "notificationWebhookUrl": "https://medicare-backend-production-861b.up.railway.app/api/emergency/notify"
 }
