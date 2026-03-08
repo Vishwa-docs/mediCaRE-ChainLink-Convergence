@@ -77,7 +77,7 @@ Healthcare systems globally suffer from critical, interconnected challenges:
                      │  Backend (Express.js) │
                      │  AI Modules │ FHIR    │
                      │  IPFS │ World ID      │
-                     │  SQLite │ JWT Auth    │
+                     │  Supabase │ JWT Auth  │
                      │  Audit │ Treasury     │
                      └──────────┬───────────┘
                                 │
@@ -184,7 +184,7 @@ Healthcare systems globally suffer from critical, interconnected challenges:
 - **JWT login** — email/password, wallet, and World ID login methods with role-based tokens
 - **6 demo accounts** — admin, patient, doctor, insurer, paramedic, researcher (quick-login cards on /login)
 - **Role-based UI gating** — header shows role badge + WorldID verified status; unauthenticated users redirect to /login
-- **World ID verification** — dev-mode simulation endpoint + production Worldcoin API verify; status persisted in SQLite
+- **World ID verification** — dev-mode simulation endpoint + production Worldcoin API verify; status persisted in Supabase
 
 ### Security & Gas Optimization
 - AES-256-GCM encryption, JWT auth, three-tier rate limiting, ReentrancyGuard
@@ -524,6 +524,8 @@ cd frontend && npx next build
 | Governance | `0xB5095Ecbf55E739395e346A6ebEA1701D47d5556` | ✅ |
 
 Network: Tenderly Virtual Sepolia · Chain ID: `99911155111` · Deployer: `0x7637B8d8F46990441420343A7660436eD69c3716`
+
+**Tenderly VNet Explorer**: [View transactions & contract state](https://virtual.sepolia.eu.rpc.tenderly.co/4f438d0e-a57a-456b-b2d8-bf8683fe3b32)
 
 ---
 
