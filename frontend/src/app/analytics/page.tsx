@@ -57,7 +57,7 @@ export default function AnalyticsPage() {
           const statusNames = ["Pending", "Approved", "Rejected", "Paid"];
           const counts: Record<string, number> = { Pending: 0, Approved: 0, Rejected: 0, Paid: 0 };
           const claimPromises = Array.from({ length: n }, (_, i) =>
-            insuranceContract.read<any>("getClaim", i + 1).catch(() => null)
+            insuranceContract.read<any>("getClaim", i).catch(() => null)
           );
           const claimResults = await Promise.all(claimPromises);
           for (const cl of claimResults) {

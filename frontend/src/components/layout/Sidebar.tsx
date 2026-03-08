@@ -17,6 +17,9 @@ import {
   HeartPulse,
   Brain,
   BarChart3,
+  Siren,
+  FlaskConical,
+  Landmark,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -25,8 +28,11 @@ const NAV_ITEMS = [
   { href: "/visit-summary", label: "Visit Summary", icon: Stethoscope },
   { href: "/insurance", label: "Insurance", icon: Shield },
   { href: "/supply-chain", label: "Supply Chain", icon: Truck },
+  { href: "/emergency", label: "Emergency", icon: Siren },
   { href: "/credentials", label: "Credentials", icon: BadgeCheck },
   { href: "/governance", label: "Governance", icon: Vote },
+  { href: "/treasury", label: "Treasury", icon: Landmark },
+  { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/ai-models", label: "AI Models", icon: Brain },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/audit-log", label: "Audit Log", icon: ScrollText },

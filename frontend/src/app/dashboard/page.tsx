@@ -39,7 +39,7 @@ export default function DashboardPage() {
         const statusCounts: Record<string, number> = { Pending: 0, Approved: 0, Paid: 0, Rejected: 0 };
         const statusNames = ["Pending", "Approved", "Rejected", "Paid"];
         const claimPromises = Array.from({ length: n }, (_, i) =>
-          insuranceContract.read<any>("getClaim", i + 1).catch(() => null)
+          insuranceContract.read<any>("getClaim", i).catch(() => null)
         );
         const claims = await Promise.all(claimPromises);
         for (const claim of claims) {

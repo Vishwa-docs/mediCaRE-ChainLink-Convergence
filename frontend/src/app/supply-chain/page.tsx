@@ -12,6 +12,30 @@ import { ethers } from "ethers";
 import type { SupplyBatch } from "@/types";
 import toast from "react-hot-toast";
 
+// Known keccak256 hashes from seeded demo data → readable names
+const KNOWN_HASHES: Record<string, string> = {
+  "0x78035f650329de00b6a6af69e3aed0036ecb4e1885f5275d515c91d5250ed297": "LOT-AMOX-2026-001",
+  "0x8c8de3e10174c946a6cf750f21aea200da38a9cf0c7e2223daa20f350a8117cc": "Amoxicillin 500mg Capsules",
+  "0x3c9353508a5ad635f588f181b2cd6b9e04422600a42fa73357673bf54e9af70e": "LOT-METF-2026-042",
+  "0x8d58a062efbc6183c75add2af3333e3ac2b49c3d9ffb5f06f5d9ba1dc036d935": "Metformin 850mg Tablets",
+  "0x2c61bec0805d324d50a967921fae9e1ad0bf89084f05f0dbd1f7c663112b3267": "LOT-INSL-2026-007",
+  "0xb654d5eee63d420c9e0f32eb591bf70fe42dea8c5cbb0146942cc8281c24138c": "Insulin Glargine 100U/mL",
+  "0x714071dd61893f967e3ec2761ec9dd73add5612e3e389391b55c43ea6db30772": "LOT-OMEP-2026-019",
+  "0xedc2033fb488687885cd913573dabaa7409ab3e60ad2c167758e8eaf7d0eef34": "Omeprazole 20mg Delayed-Release",
+};
+
+/** Safely decode a bytes32 value — tries decodeBytes32String first, then known hash lookup, then truncated hex */
+function safeDecodeBytes32(value: string): string {
+  try {
+    const decoded = ethers.decodeBytes32String(value);
+    if (decoded) return decoded;
+  } catch {
+    // Not an encoded string — check known hashes
+  }
+  if (KNOWN_HASHES[value]) return KNOWN_HASHES[value];
+  return `${value.slice(0, 10)}…${value.slice(-6)}`;
+}
+
 export default function SupplyChainPage() {
   const [batches, setBatches] = useState<SupplyBatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +57,7 @@ export default function SupplyChainPage() {
       const count = await supplyContract.read<bigint>("totalBatches");
       const n = Number(count);
       const batchPromises = Array.from({ length: n }, (_, i) =>
-        supplyContract.read<any>("getBatch", i + 1).catch(() => null)
+        supplyContract.read<any>("getBatch", i).catch(() => null)
       );
       const batchResults = await Promise.all(batchPromises);
       const items: SupplyBatch[] = batchResults
@@ -41,12 +65,12 @@ export default function SupplyChainPage() {
         .map((b) => ({
           batchId: Number(b.batchId ?? b[0]),
           manufacturer: b.manufacturer ?? b[1],
-          lotNumber: ethers.decodeBytes32String(b.lotNumber ?? b[2]),
+          lotNumber: safeDecodeBytes32(b.lotNumber ?? b[2]),
           manufactureDate: Number(b.manufactureDate ?? b[3]),
           expiryDate: Number(b.expiryDate ?? b[4]),
           quantity: Number(b.quantity ?? b[5]),
           status: Number(b.status ?? b[6]),
-          drugName: ethers.decodeBytes32String(b.drugNameHash ?? b[7]),
+          drugName: safeDecodeBytes32(b.drugNameHash ?? b[7]),
         }));
       setBatches(items);
     } catch {

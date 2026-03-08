@@ -58,3 +58,4 @@ data/
 *.db
 *.db-shm
 *.db-wal
+SETUP_GUIDE.md

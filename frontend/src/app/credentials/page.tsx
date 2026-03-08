@@ -33,7 +33,7 @@ export default function CredentialsPage() {
       const count = await credContract.read<bigint>("totalCredentials");
       const n = Number(count);
       const credPromises = Array.from({ length: n }, (_, i) =>
-        credContract.read<any>("getCredential", i + 1).catch(() => null)
+        credContract.read<any>("getCredential", i).catch(() => null)
       );
       const credResults = await Promise.all(credPromises);
       const items: Credential[] = credResults

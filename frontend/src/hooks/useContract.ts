@@ -75,12 +75,27 @@ export function useWalletAddress() {
   const [address, setAddress] = useState<string | null>(null);
 
   const connect = useCallback(async () => {
-    const provider = getProvider();
-    if (!provider) return null;
-    const signer = await provider.getSigner();
-    const addr = await signer.getAddress();
-    setAddress(addr);
-    return addr;
+    // Try browser wallet first (MetaMask, etc.)
+    const browserProvider = getBrowserProvider();
+    if (browserProvider) {
+      try {
+        const signer = await browserProvider.getSigner();
+        const addr = await signer.getAddress();
+        setAddress(addr);
+        return addr;
+      } catch {
+        // Browser wallet refused or unavailable — fall through
+      }
+    }
+
+    // Fall back to demo address for read-only mode
+    const demoAddr = process.env.NEXT_PUBLIC_DEMO_ADDRESS;
+    if (demoAddr) {
+      setAddress(demoAddr);
+      return demoAddr;
+    }
+
+    return null;
   }, []);
 
   return { address, connect };

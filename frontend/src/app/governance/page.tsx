@@ -30,7 +30,7 @@ export default function GovernancePage() {
       const count = await govContract.read<bigint>("totalProposals");
       const n = Number(count);
       const proposalPromises = Array.from({ length: n }, (_, i) =>
-        govContract.read<any>("getProposal", i + 1).catch(() => null)
+        govContract.read<any>("getProposal", i).catch(() => null)
       );
       const proposalResults = await Promise.all(proposalPromises);
       const items: Proposal[] = proposalResults
