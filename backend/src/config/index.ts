@@ -52,8 +52,8 @@ const config = {
 
   /** Pinata / IPFS */
   ipfs: {
-    pinataApiKey: required("PINATA_API_KEY"),
-    pinataSecretKey: required("PINATA_SECRET_KEY"),
+    pinataApiKey: optional("PINATA_API_KEY", ""),
+    pinataSecretKey: optional("PINATA_SECRET_KEY", ""),
     gateway: optional("PINATA_GATEWAY", "https://gateway.pinata.cloud/ipfs"),
   },
 
@@ -77,7 +77,7 @@ const config = {
 
   /** World ID */
   worldId: {
-    appId: required("WORLDID_APP_ID"),
+    appId: optional("WORLDID_APP_ID", "app_staging"),
     action: optional("WORLDID_ACTION", "verify-human"),
     apiUrl: optional(
       "WORLDID_API_URL",
