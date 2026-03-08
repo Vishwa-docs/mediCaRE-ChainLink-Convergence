@@ -51,6 +51,7 @@ After logging in, click the **"Guided Tour"** button (bottom-right). It walks th
 - [Deployed Contracts](#deployed-contracts-tenderly-vnet)
 - [Prize Track Eligibility](#prize-track-eligibility)
 - [Chainlink File References](#chainlink-file-references)
+- [Documentation](#documentation)
 - [Local Development](#local-development)
 - [License](#license)
 
@@ -348,33 +349,24 @@ Network: Tenderly Virtual Sepolia · Chain ID: `99911155111` · Deployer: `0x763
 ```
 mediCaRE/
 ├── contracts/                    # Solidity smart contracts
-│   ├── src/                      # Contract source
-│   │   ├── EHRStorage.sol
-│   │   ├── InsurancePolicy.sol
-│   │   ├── SupplyChain.sol
-│   │   ├── CredentialRegistry.sol
-│   │   ├── Governance.sol
-│   │   ├── utils/                # AccessManager, ReentrancyGuard
-│   │   ├── interfaces/           # Contract interfaces
-│   │   └── mocks/                # MockStablecoin
-│   ├── test/                     # Unit + integration tests
-│   ├── scripts/                  # Deploy + seed
+│   ├── src/                      # Contract source (6 contracts)
+│   ├── test/                     # Unit + integration tests (214 tests)
+│   ├── scripts/                  # Deploy + seed scripts
 │   └── deployments/              # Deployed addresses (tenderlyVNet.json)
 ├── cre-workflows/                # Chainlink CRE workflows (17 total)
-│   ├── claim-adjudicator/        # ★ BFT multi-agent swarm
-│   ├── emergency-access/         # ★ Glass-break access
-│   ├── trial-matcher/            # ★ ZK clinical trial matching
-│   ├── fraud-monitor/            # ★ Graph anomaly detection
-│   ├── worldid/                  # ★ World ID verification
+│   ├── claim-adjudicator/        # BFT multi-agent swarm
+│   ├── emergency-access/         # Glass-break access
+│   ├── trial-matcher/            # ZK clinical trial matching
+│   ├── fraud-monitor/            # Graph anomaly detection
+│   ├── worldid/                  # World ID verification
 │   ├── crosschain/               # CCIP settlement
-│   ├── medical-historian/        # Longitudinal AI summaries
-│   ├── ...                       # + 10 more workflows
+│   ├── ...                       # + 11 more workflows
 │   ├── project.yaml              # CRE project manifest
 │   └── secrets.yaml              # CRE secrets manifest
 ├── backend/                      # Express.js API server
 │   └── src/
-│       ├── ai/                   # AI modules (summarizer, risk, adjudicator, etc.)
-│       ├── services/             # Blockchain, IPFS, FHIR, WorldID, audit, treasury
+│       ├── ai/                   # AI modules (summarizer, risk, adjudicator)
+│       ├── services/             # Blockchain, IPFS, FHIR, WorldID, audit
 │       ├── routes/               # 14 route modules
 │       └── middleware/           # Auth, rate limiting, error handling
 ├── frontend/                     # Next.js 16 application
@@ -383,9 +375,15 @@ mediCaRE/
 │       ├── components/           # 27+ React components
 │       ├── contexts/             # AuthContext (JWT + role + WorldID state)
 │       └── lib/                  # API clients, contract ABIs, thirdweb config
-├── docs/                         # architecture.md, api.md, governance.md
-├── SECURITY.md
-├── SETUP_GUIDE.md
+├── docs/                         # Project documentation
+│   ├── architecture.md           # System architecture + data flow diagrams
+│   ├── api.md                    # Full REST API reference (all endpoints)
+│   ├── governance.md             # DAO governance mechanics
+│   ├── research-report.md        # Technical codebase analysis
+│   ├── business-value.md         # Market analysis + revenue model
+│   ├── feature-manifest.md       # Complete feature inventory (32 features)
+│   ├── security.md               # Security policy + vulnerability reporting
+│   └── setup-guide.md            # Step-by-step environment setup
 ├── docker-compose.yml
 └── README.md
 ```
@@ -452,11 +450,28 @@ cd frontend && npx next build
 
 ---
 
+## Documentation
+
+Detailed documentation is available in the [`docs/`](docs/) directory:
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System architecture with layer-by-layer descriptions, data flow diagrams, security model, and deployment topology |
+| [API Reference](docs/api.md) | Complete REST API documentation — all endpoints, request/response schemas, authentication, rate limiting, error codes |
+| [Governance](docs/governance.md) | DAO governance mechanics — proposal lifecycle, token-weighted voting, timelock, quorum, code examples |
+| [Research Report](docs/research-report.md) | Technical codebase analysis — backend services, smart contract details, frontend structure, CRE workflow internals, test coverage, external dependencies |
+| [Business Value](docs/business-value.md) | Market analysis ($4.7T healthcare market), revenue model (5 streams), unit economics, competitive advantages, go-to-market strategy |
+| [Feature Manifest](docs/feature-manifest.md) | Complete inventory of all 32 implemented features organized by hackathon track |
+| [Security Policy](docs/security.md) | Vulnerability reporting process, scope, 90-day coordinated disclosure policy, security best practices |
+| [Setup Guide](docs/setup-guide.md) | Step-by-step guide for MetaMask, Alchemy, Etherscan, and Tenderly account setup with environment configuration |
+
+---
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-Built with ❤️ for the **Chainlink Convergence Hackathon 2026**
+Built for the **Chainlink Convergence Hackathon 2026**
 
