@@ -529,12 +529,55 @@ Network: Tenderly Virtual Sepolia · Chain ID: `99911155111` · Deployer: `0x763
 
 ## Prize Track Eligibility
 
+### Primary Tracks
+
 | Track | How mediCaRE Qualifies |
 |-------|----------------------|
-| **CRE & AI** | 17 CRE workflows including multi-agent BFT claim adjudication, ZK trial matching, medical historian, IRB agent, vitals monitoring, fraud detection, auth session management — all with on-chain explainability |
-| **Privacy** | Confidential HTTP for FHIR data, Confidential Compute for all AI decisions, TEE-based trial matching, emergency glass-break with immutable audit, AES-256-GCM, World ID ZKPs, consent NLP |
-| **Risk & Compliance** | IoT monitoring, graph-based fraud detection, auto-pause treasury, IRB compliance scoring, immutable audit trail, premium risk adjustment |
-| **DeFi & Tokenization** | ERC-721 insurance NFTs, ERC-1155 supply-chain tokens, CCIP cross-chain settlements, treasury health monitoring, data monetization marketplace |
+| **CRE & AI** | 17 CRE workflows including multi-agent BFT claim adjudication, ZK trial matching, medical historian, IRB agent, vitals monitoring, fraud detection, auth session management — all integrating blockchain with AI/LLM APIs via CRE orchestration with on-chain explainability |
+| **Privacy** | Confidential HTTP for FHIR data ingestion (hides API credentials from chain), Confidential Compute for all AI adjudication decisions (sensitive medical data never exposed on-chain), TEE-based clinical trial matching, emergency glass-break with immutable audit trail, AES-256-GCM encryption, World ID ZKPs for Sybil-resistant identity, consent NLP in CRE |
+
+### Secondary Tracks
+
+| Track | How mediCaRE Qualifies |
+|-------|----------------------|
+| **Risk & Compliance** | IoT supply-chain monitoring CRE workflow triggers alerts on anomalies, graph-based fraud detection, auto-pause treasury when health drops below threshold, IRB compliance scoring via CRE, immutable audit trail, dynamic premium risk adjustment |
+| **DeFi & Tokenization** | ERC-721 insurance NFTs (lifecycle management — mint, claim, adjudicate), ERC-1155 pharmaceutical batch tokens (RWA tokenization for supply chain), CCIP cross-chain settlement workflow, treasury health monitoring, data monetization marketplace |
+
+### Sponsor Tracks
+
+| Sponsor Track | How mediCaRE Qualifies |
+|---------------|----------------------|
+| **World ID × CRE** | Real World ID integration using IDKit v4 with `deviceLegacy` preset and server-side `signRequest()` for rp_context signing. Dedicated CRE workflow (`cre-workflows/worldid/`) verifies World ID proofs via Confidential HTTP (hides app secrets) and writes credential attestations on-chain to `CredentialRegistry.sol`. Frontend Settings page launches IDKit widget; backend performs off-chain proof verification; CRE orchestrates the full flow. App ID: `app_cf4f67cc7a208b56b418fdc252b16aa5`, Action: `medicare-identity` |
+| **Tenderly Virtual TestNets** | All 6 smart contracts deployed and verified on Tenderly Virtual Sepolia (chain ID `99911155111`). Full transaction history, deployment scripts, and contract interactions available on Tenderly VNet Explorer. CRE workflows tested against VNet RPCs. |
+| **thirdweb × CRE** | thirdweb SDK v5 used for wallet connection, contract reads/writes, and user onboarding across all frontend pages. Combined with CRE workflows for orchestrated contract interactions (claim adjudication, credential issuance, supply chain updates). |
+
+### Requirements Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| CRE Workflow integrating blockchain + external API/AI | ✅ 17 workflows (e.g., `claim-adjudicator` uses AI LLM + EVM write) |
+| CRE CLI simulation or live deployment | ✅ Workflow configs + project.yaml in `cre-workflows/` |
+| 3-5 minute video | ⬜ To be recorded |
+| Public source code | ✅ [GitHub](https://github.com/Vishwa-docs/mediCaRE-ChainLink-Convergence) |
+| README with links to Chainlink files | ✅ See below |
+
+### Chainlink File References
+
+| File | Purpose |
+|------|---------|
+| [`cre-workflows/`](cre-workflows/) | All 17 CRE workflow definitions (YAML configs + TypeScript handlers) |
+| [`cre-workflows/worldid/main.ts`](cre-workflows/worldid/main.ts) | World ID verification CRE workflow — verifies ZK proofs + writes credential attestation |
+| [`cre-workflows/claim-adjudicator/main.ts`](cre-workflows/claim-adjudicator/main.ts) | Multi-agent BFT insurance claim adjudication via AI |
+| [`cre-workflows/crosschain/main.ts`](cre-workflows/crosschain/main.ts) | CCIP cross-chain settlement workflow |
+| [`cre-workflows/emergency-access/main.ts`](cre-workflows/emergency-access/main.ts) | Emergency glass-break access with Confidential Compute |
+| [`cre-workflows/trial-matcher/main.ts`](cre-workflows/trial-matcher/main.ts) | ZK clinical trial matching via Confidential HTTP |
+| [`cre-workflows/fraud-monitor/main.ts`](cre-workflows/fraud-monitor/main.ts) | Graph-based fraud detection CRE workflow |
+| [`cre-workflows/medical-historian/main.ts`](cre-workflows/medical-historian/main.ts) | AI-powered longitudinal medical record summarization |
+| [`cre-workflows/project.yaml`](cre-workflows/project.yaml) | CRE project manifest |
+| [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) | CRE secrets manifest (World ID, AI, IPFS, CCIP keys) |
+| [`contracts/src/`](contracts/src/) | 6 Solidity contracts deployed on Tenderly VNet |
+| [`backend/src/services/worldid.ts`](backend/src/services/worldid.ts) | Backend World ID proof verification service |
+| [`frontend/src/app/settings/page.tsx`](frontend/src/app/settings/page.tsx) | IDKit v4 widget integration |
 
 ---
 
