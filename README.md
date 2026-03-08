@@ -17,7 +17,7 @@
 | **Live App** | **[https://medicare-frontend-production.up.railway.app](https://medicare-frontend-production.up.railway.app)** |
 | **Backend API** | [https://medicare-backend-production-861b.up.railway.app](https://medicare-backend-production-861b.up.railway.app/health) |
 | **Source Code** | [https://github.com/Vishwa-docs/mediCaRE-ChainLink-Convergence](https://github.com/Vishwa-docs/mediCaRE-ChainLink-Convergence) |
-| **Tenderly VNet Explorer** | [View contracts & transactions](https://dashboard.tenderly.co/JackBright/medicare/testnet/4f438d0e-a57a-456b-b2d8-bf8683fe3b32) |
+| **Tenderly VNet Explorer** | [View contracts & transactions](https://dashboard.tenderly.co/explorer/vnet/4f438d0e-a57a-456b-b2d8-bf8683fe3b32/transactions) |
 
 ### Demo Accounts
 
